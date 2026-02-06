@@ -33,20 +33,33 @@
     .input-group-custom { display: flex; flex-direction: column; }
     .input-group-custom label { font-size: 0.75rem; font-weight: bold; color: #555; margin-bottom: 3px; }
 
-    /* Tabela */
-    .table-responsive { background: white; border: 1px solid #ccc; box-shadow: 0 4px 6px rgba(0,0,0,0.05); min-height: 400px; border-radius: 4px; }
+    /* --- ALTERAÇÃO AQUI: Tabela com Rolagem Fixa --- */
+    .table-responsive { 
+        background: white; 
+        border: 1px solid #ccc; 
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05); 
+        border-radius: 4px; 
+        
+        /* Define a altura máxima da tabela(cabeçalho) para caber na tela */
+        max-height: 100vh; 
+        
+        /* Ativa a rolagem vertical DENTRO da tabela */
+        overflow-y: auto;
+    }
     
     thead th { 
         position: sticky; top: 0; 
         background: var(--azul-contec) !important; 
         color: white !important; 
         z-index: 100; 
-        vertical-align: bottom; 
+        vertical-align: middle; 
         text-align: center; 
         padding: 6px 2px !important; 
         font-size: 0.8rem; 
         font-weight: bold; 
         border: 1px solid rgba(255,255,255,0.2) !important;
+        /* Sombra para separar o cabeçalho do conteúdo ao rolar */
+        box-shadow: 0 2px 2px rgba(0,0,0,0.1);
     }
     
     .th-box { height: 130px; display: flex; align-items: center; justify-content: center; width: 100%; }
@@ -58,12 +71,11 @@
     
     .check-fiscal { width: 16px; height: 16px; cursor: pointer; accent-color: #198754; margin: 0; }
     
-    /* --- CORREÇÃO DA COLUNA AÇÕES --- */
     .action-icons { 
         display: flex; 
         justify-content: center; 
         align-items: center; 
-        gap: 8px; /* Espaço entre ícones */
+        gap: 8px; 
         height: 100%;
         padding: 5px !important;
     }
@@ -83,17 +95,30 @@
     .progress-bar { background-color: var(--azul-contec); }
 
     @media print {
-        @page { size: landscape; margin: 5mm; }
-        body { background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; transform: scale(0.85); transform-origin: top left; width: 117%; }
+        @page { size: portrait; margin: 3mm; }
+        body { background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; zoom: 0.55; width: 100% }
         header, .nav-bar, .toolbar, .form-row, .modal, .action-icons, .progress-container, .obs-row { display: none !important; }
-        .table-responsive { border: none; box-shadow: none; overflow: visible; width: 100%; }
+        /* Na impressão, removemos a rolagem para sair tudo */
+        .main-content { padding: 0 !important; margin: 0 !important; width: 100% !important; }
+        .table-responsive { border: none; box-shadow: none; overflow: visible; max-height: none !important; width: 100%; display: block; }
         table { width: 100%; border-collapse: collapse; }
-        thead th { background-color: #ddd !important; color: black !important; border: 1px solid #000 !important; }
-        td { border: 1px solid #000 !important; padding: 2px !important; }
-        .th-vertical { height: 90px; color: black !important; }
-        /* Esconde a coluna Ações inteira na impressão */
-        td:last-child, th:last-child { display: none; }
-    }
+        thead th { position: static !important; background-color: #ddd !important; color: black !important; border: 1px solid #000 !important; box-shadow: none; font-size: 10px !important; }
+        td { border: 1px solid #000 !important; padding: 1px 2px !important; font-size: 10px !important; height: auto !important; }
+        td:nth-child(2) { white-space: normal !important; max-width: 150px !important; }
+        .check-fiscal { width: 12px; height: 12px; }
+        .th-vertical { height: 80px; color: black !important; font-size: 10px; }
+        .th-box { height: 85px; }
+        th:last-child, th:last-child { display: none !important; width: 0 !important; }
+        th:nth-last-child(2), th:nth-last-child(2) { display: none !important; width: 0 !important; }
+        table { border-right: 1px solid #000 !important;}
+
+        thread th:last-child, thread th:nth-last-child(2) { display: none !important; } /*Esconde cabeçalhos (OK e Ações)*/
+        tbody td:last-child, tbody td:nth-last-child(2) { display: none !important; border: none !important; width: 0 !important; padding: 0 !important; } /*Remove bordas*/
+        .obs-row { display: none !important; }      /*Campo Obs não atrapalhar a largura*/
+
+        }
+        
+
   </style>
 </head>
 <body>
@@ -105,7 +130,7 @@
   </header>
 
   <div class="nav-bar">
-      <a href="#" class="btn-voltar"><i class="fa-solid fa-arrow-left"></i> Voltar ao Portal</a>
+      <a href="https://monicathayanne.github.io/portal-contec/" class="btn-voltar"><i class="fa-solid fa-arrow-left"></i> Voltar ao Portal</a>
       <span class="ms-auto fw-bold text-muted small" id="dataAtualDisplay"></span>
   </div>
 
@@ -165,7 +190,7 @@
               <small class="fw-bold" style="color: var(--azul-contec);">Progresso do Mês</small>
               <small class="fw-bold" id="progressoTexto">0%</small>
           </div>
-          <div class="progress" style="height: 15px;">
+          <div class="progress" style="height: 18px;">
               <div id="barraProgresso" class="progress-bar progress-bar-striped" role="progressbar" style="width: 0%"></div>
           </div>
       </div>
@@ -198,7 +223,7 @@
                     <div class="col-md-4">
                         <label class="small fw-bold">Regime / Tipo</label>
                         <select class="form-select form-select-sm" id="cadRegime" onchange="toggleCamposRegime()">
-                            <option value="SIMPLES">Simples Nacional</option>
+                            <option value="SN">Simples Nacional</option>
                             <option value="LP">Lucro Presumido</option>
                             <option value="REAL">Lucro Real</option>
                             <option value="MEI">MEI</option>
@@ -273,6 +298,7 @@
   <script>
     // === COLUNAS ===
     const COLUNAS_FISCAL = [
+         { id: 'sem_movimento', label: 'S/M' },
         { id: 'nfe_ent', label: 'NFe Entrada' },
         { id: 'nfe_sai', label: 'NFe Saída' },
         { id: 'nao_acob', label: 'Não Acobertado' },
@@ -291,18 +317,19 @@
     ];
 
     const COLUNAS_PESSOAL = [
-        { id: 'ferias', label: 'Férias' },
-        { id: 'consignado', label: 'Consignado' },
+        { id: 'sem_movimento', label: 'S/M' },
+        { id: 'ferias', label: 'Cons. Férias' },
+        { id: 'consignado', label: 'Cons. Consignado' },
         { id: 'folha', label: 'Folha' },
         { id: 'recibo', label: 'Recibo' },
         { id: 'fgts', label: 'FGTS Digital' },
         { id: 'inss', label: 'INSS (DARF)' },
         { id: 'esocial', label: 'eSocial' },
-        { id: 'dctf', label: 'DCTFWeb' },
-        { id: 'irrf', label: 'IRRF' },
+        { id: 'dctf', label: 'DCTFWeb' },        
         { id: 'prolabore', label: 'Prolabore' },
         { id: 'autonomo', label: 'Autônomo' },
         { id: 'inss_ind', label: 'INSS Indiv.' },
+        { id: 'boleto', label: 'Boleto Contec' },
         { id: 'envio', label: 'Envio / Impr.' }
     ];
 
@@ -374,6 +401,27 @@
         window.open(url, '_blank');
     }
 
+    // Função exclusiva para o botão S/M
+    window.toggleSM = function(codigo) {
+        // Cria uma chave única: sm_CODIGO_MES-ANO
+        const key = `sm_${codigo}_${estado.competencia}`;
+        
+        // Inverte o valor (se estava marcado, desmarca e vice-versa)
+        checks[key] = !checks[key];
+
+        // Se marcou S/M, já vamos dar o "OK" na linha inteira para facilitar
+        const statusKey = `ok_${codigo}_${estado.competencia}_${estado.setor}`;
+        if (checks[key]) {
+            checks[statusKey] = true;
+        } else {
+            // Se desmarcou, tira o OK para forçar a conferência manual
+            checks[statusKey] = false;
+        }
+
+        salvarChecks();
+        renderizarTabela(); // Recarrega a tela para esconder/mostrar as colunas
+    }
+
     function formatarData(iso) {
         const [ano, mes] = iso.split('-');
         return `${mes}/${ano}`;
@@ -385,7 +433,12 @@
         const termo = document.getElementById('buscaEmpresa').value.toUpperCase();
         const colunas = estado.setor === 'FISCAL' ? COLUNAS_FISCAL : COLUNAS_PESSOAL;
 
-        let htmlHead = `<tr><th rowspan="2" style="width:35px;">Cód</th><th rowspan="2" style="text-align:left;padding-left:10px;">Empresa</th><th rowspan="2" style="width:50px;">Regime</th>`;
+        let htmlHead = `<tr>
+            <th rowspan="2" style="width:35px; vertical-align: middle;">Cód</th>
+            <th rowspan="2" style="padding:0;">
+                <div style="display:flex; align-items:center; height:130px; padding-left:10px;">Empresa</div>
+            </th>
+            <th><div class="th-box"><span class="th-vertical">Regime</span></div></th>`;
         colunas.forEach(c => {
             htmlHead += `<th><div class="th-box"><span class="th-vertical">${c.label}</span></div></th>`;
         });
@@ -398,6 +451,12 @@
 
         empresas.forEach((emp, index) => {
             const codigoStr = String(emp.codigo);
+            if (estado.setor === 'FISCAL'&& emp.ativoFiscal === false)
+            return;
+
+            if (estado.setor === 'PESSOAL'&& emp.ativoPessoal === false)
+            return;
+
             if (termo && !emp.nome.includes(termo) && codigoStr !== termo && !emp.cnpj.includes(termo)) return;
 
             let obrigacoes = estado.setor === 'FISCAL' ? (emp.obrigacoesFiscal||[]) : (emp.obrigacoesPessoal||[]);
@@ -423,22 +482,53 @@
 
             let html = `
                 <td class="fw-bold">${codDisplay}</td>
-                <td style="text-align:left; padding-left:10px; max-width:200px;">
+                <td style="text-align:left; padding-left:10px;">
                     <div class="fw-bold text-truncate">${emp.nome}</div>
                     <div style="font-size:0.7rem; color:#666;">${emp.cnpj || ''}</div>${extraInfo}
                 </td>
-                <td><span class="badge bg-white text-dark border" style="font-size:0.6rem">${emp.regime}</span></td>
+                <td><span class="badge bg-white text-dark border" style="font-size:0.6rem">${emp.regime === 'SIMPLES' ? 'SN' :emp.regime}</span></td>
             `;
 
+            // 1. Verifica se já está marcado como Sem Movimento neste mês
+            const keySM = `sm_${emp.codigo}_${estado.competencia}`;
+            const isSM = checks[keySM] === true;
+
             let nec = 0, marc = 0;
+
             colunas.forEach(col => {
-                if(obrigacoes.includes(col.id)) {
-                    nec++;
-                    const checked = checks[`${emp.codigo}_${col.id}`] ? 'checked' : '';
-                    if(checked) marc++;
-                    html += `<td><input type="checkbox" class="check-fiscal" onchange="toggleCheck('${emp.codigo}', '${col.id}')" ${checked}></td>`;
-                } else {
-                    html += `<td class="celula-na"></td>`;
+                // SE FOR A COLUNA S/M (Obriga a aparecer o checkbox)
+                if (col.id === 'sem_movimento') {
+                    const checked = isSM ? 'checked' : '';
+                    
+                    // Atenção: Aqui desenhamos o input direto, sem verificar obrigações
+                    html += `<td class="text-center">
+                                <input type="checkbox" 
+                                       class="form-check-input" 
+                                       style="margin: 0 auto;"
+                                       onchange="toggleSM('${emp.codigo}')" 
+                                       ${checked}>
+                             </td>`;
+                } 
+                // SE FOR OUTRA COLUNA (Impostos normais)
+                else {
+                    // Se estiver S/M, mostra tracinho "-"
+                    if (isSM) {
+                        html += `<td class="text-center text-muted">-</td>`;
+                    } 
+                    // Se não, segue a vida normal
+                    else {
+                        if (obrigacoes.includes(col.id)) {
+                            nec++;
+                            // Verifica se está feito
+                            const isFeito = checks[emp.codigo + '_' + col.id]; 
+                            const checked = isFeito ? 'checked' : '';
+                            if(checked) marc++;
+                            
+                            html += `<td><input type="checkbox" class="check-fiscal" onchange="toggleCheck('${emp.codigo}', '${col.id}')" ${checked}></td>`;
+                        } else {
+                            html += `<td class="celula-na"></td>`;
+                        }
+                    }
                 }
             });
 
@@ -448,8 +538,8 @@
             html += `<td class="fw-bold">${icone}</td>
                      <td>
                         <div class="action-icons">
-                            <i class="fa-solid fa-paper-plane btn-whats" title="WhatsApp" onclick="enviarZap('${emp.nome}')"></i>
                             <i class="fa-solid fa-paperclip btn-obs" title="Obs" onclick="toggleObs(${index})"></i>
+                            <i class="fa-solid fa-paper-plane btn-whats" title="WhatsApp" onclick="enviarZap('${emp.nome}')"></i>                            
                             <i class="fa-solid fa-pencil btn-edit" title="Editar" onclick="editarEmpresa(${index})"></i>
                             <i class="fa-solid fa-trash btn-del" title="Excluir" onclick="deletar(${index})"></i>
                         </div>
@@ -578,7 +668,7 @@
         if(regime === 'PF') {
             ['inss_ind', 'irrf', 'recibo'].forEach(x=>sug.add(x));
         } else {
-            if(regime === 'SIMPLES') {
+            if(regime === 'SN') {
                 if(com) ['nfe_ent','nfe_sai','nao_acob','nfce','cartao','icms','das'].forEach(x=>sug.add(x));
                 if(serv) ['nfe_ent','nfse','das','escrit'].forEach(x=>sug.add(x));
             } else if(regime === 'LP') {
@@ -650,12 +740,20 @@
         renderizarTabela();
     }
 
-    function deletar(i) {
-        if(confirm("Deseja realmente excluir este cadastro?")) {
-            empresas.splice(i,1);
-            localStorage.setItem('db_contec_empresas_v13', JSON.stringify(empresas));
-            renderizarTabela();
+    function deletar(index) {
+        const emp = empresas[index];
+        const setorNome = estado.setor === 'FISCAL' ? 'do setor FISCAL': 'do setor PESSOAL';
+
+        if (!confirm(`Deseja remover "${emp.nome}" da lista ${setorNome}?\n(Os dados permanecerão salvos no banco de dados)`))
+        return;
+
+        if (estado.setor === 'FISCAL') {
+            emp.ativoFiscal = false;
         }
+
+        localStorage.setItem('db_contec_empresas_v13', JSON.stringify(empresas));
+        renderizarTabela();
+
     }
 
     function exportarJSON() {
@@ -707,7 +805,7 @@
                     let regimeStr = String(r[3]||'').toUpperCase();
                     const nit = r[8] ? String(r[8]).trim() : '';
 
-                    let regime = 'SIMPLES';
+                    let regime = 'SN';
                     if(regimeStr.includes('LP')) regime = 'LP';
                     else if(regimeStr.includes('REAL')) regime = 'REAL';
                     else if(regimeStr.includes('MEI')) regime = 'MEI';
@@ -731,7 +829,7 @@
                     if(regime==='PF') {
                         pess.push('inss_ind','irrf','recibo');
                     } else {
-                        if(regime==='SIMPLES') {
+                        if(regime==='SN') {
                             if(com) ['nfe_ent','nfe_sai','nao_acob','nfce','cartao','icms','das'].forEach(x=>fisc.push(x));
                             if(serv) ['nfe_ent','nfse','das','escrit'].forEach(x=>fisc.push(x));
                         } else if(regime==='LP') {
@@ -740,8 +838,8 @@
                         } else if(regime==='MEI') {
                             fisc.push('das'); if(com||serv) fisc.push('nfe_ent');
                         }
-                        if(func) ['ferias','folha','recibo','fgts','inss','esocial','dctf','irrf'].forEach(x=>pess.push(x));
-                        if(prolab) ['prolabore','inss','irrf','esocial','dctf'].forEach(x=>pess.push(x));
+                        if(func) ['ferias','folha','recibo','fgts','inss','esocial','dctf'].forEach(x=>pess.push(x));
+                        if(prolab) ['prolabore','inss','esocial','dctf'].forEach(x=>pess.push(x));
                     }
                     nova.obrigacoesFiscal = [...new Set(fisc)];
                     nova.obrigacoesPessoal = [...new Set(pess)];
