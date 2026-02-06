@@ -771,17 +771,49 @@
     function importarJSON(inp) {
         const f = inp.files[0];
         if(!f) return;
+
         const r = new FileReader();
         r.onload = e => {
             try {
-                const d = JSON.parse(e.target.result);
-                if(d.empresas) { empresas = d.empresas; localStorage.setItem('db_contec_empresas_v13', JSON.stringify(empresas)); }
-                if(d.checks) for(let k in d.checks) localStorage.setItem(k, JSON.stringify(d.checks[k]));
-                alert("Backup restaurado!");
-                location.reload();
-            } catch(x) { alert("Erro JSON"); }
+                // Lê o conteúdo do arquivo
+                const json = JSON.parse(e.target.result);
+                
+                let dadosEmpresas = [];
+                let dadosChecks = {};
+
+                // CASO 1: É o backup antigo? (É apenas uma lista solta)
+                if (Array.isArray(json)) {
+                    dadosEmpresas = json;
+                } 
+                // CASO 2: É o backup novo? (Tem campo 'empresas')
+                else if (json.empresas) {
+                    dadosEmpresas = json.empresas;
+                    if (json.checks) dadosChecks = json.checks;
+                }
+
+                // Se achou empresas, salva na gaveta certa (V13)
+                if (dadosEmpresas.length > 0) {
+                    empresas = dadosEmpresas; // Atualiza a memória
+                    localStorage.setItem('db_contec_empresas_v13', JSON.stringify(empresas));
+                    
+                    // Se tiver checks, restaura também (assumindo que usa a chave db_checks)
+                    if (Object.keys(dadosChecks).length > 0) {
+                        checks = dadosChecks;
+                        localStorage.setItem('db_checks', JSON.stringify(checks));
+                    }
+
+                    alert("Backup restaurado com sucesso! A página será recarregada.");
+                    location.reload(); // Recarrega para mostrar os dados novos
+                } else {
+                    alert("O arquivo não contém uma lista de empresas válida.");
+                }
+
+            } catch(x) { 
+                alert("Erro ao ler JSON: " + x); 
+            }
         };
         r.readAsText(f);
+        inp.value = ''; // Limpa para permitir carregar o mesmo arquivo se errar
     }
 
     function importarExcel(input) {
