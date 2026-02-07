@@ -418,13 +418,19 @@
             </div>
             <div class="modal-footer py-1">
                 <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+    
+                <button type="button" class="btn btn-primary btn-sm fw-bold" onclick="enviarOutlookReal()" title="Abrir no Outlook Web">
+                    <i class="fa-solid fa-envelope"></i> Outlook
+                </button>
+    
                 <button type="button" class="btn btn-success btn-sm fw-bold" onclick="enviarMensagemReal()">
-                    <i class="fa-solid fa-paper-plane"></i> Enviar
+                    <i class="fa-brands fa-whatsapp"></i> WhatsApp
                 </button>
             </div>
         </div>
     </div>
 </div>
+
 
 <div class="modal fade" id="modalConfigImpostos" tabindex="-1">
     <div class="modal-dialog">
@@ -1312,6 +1318,31 @@
             localStorage.setItem('db_config_impostos', JSON.stringify(configImpostos));
             renderizarListaConfig();
         }
+    }
+
+    // 1. Enviar pelo WhatsApp
+    window.enviarMensagemReal = function() {
+        const texto = document.getElementById('textoFinalWhats').value;
+        // Cria o link do WhatsApp
+        const url = `https://wa.me/?text=${encodeURIComponent(texto)}`;
+        window.open(url, '_blank');
+        modalWhatsInstance.hide();
+    }
+
+    // 2. Enviar pelo Outlook / Hotmail
+    window.enviarOutlookReal = function() {
+        let texto = document.getElementById('textoFinalWhats').value;
+        // Remove asteriscos para o email ficar limpo
+        const corpoEmail = texto.replace(/\*/g, ''); 
+        
+        const nomeEmpresa = empresaAtualZap ? empresaAtualZap.nome : "Empresa";
+        const assunto = `Guias - ${nomeEmpresa} - ${formatarData(estado.competencia)}`;
+
+        // Link para Outlook Pessoal/Hotmail
+        const url = `https://outlook.live.com/owa/?path=/mail/action/compose&subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(corpoEmail)}`;
+        
+        window.open(url, '_blank');
+        modalWhatsInstance.hide();
     }
 
   </script>
