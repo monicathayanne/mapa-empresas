@@ -256,6 +256,32 @@
                         <input type="text" class="form-control form-control-sm border-primary" id="cadNit">
                     </div>
 
+                    <div class="col-md-5">
+                        <label class="small fw-bold text-muted">E-mail (Para envio direto)</label>
+                        <div class="input-group input-group-sm">
+                        <span class="input-group-text"><i class="fa-solid fa-envelope"></i></span>
+                        <input type="email" class="form-control" id="cadEmail" placeholder="exemplo@empresa.com">
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="small fw-bold text-muted">WhatsApp (Com DDD)</label>
+                        <div class="input-group input-group-sm">
+                        <span class="input-group-text"><i class="fa-brands fa-whatsapp"></i></span>
+                        <input type="text" class="form-control" id="cadTelefone" placeholder="85999999999" maxlength="15" oninput="this.value = this.value.replace(/\D/g,'')">
+                        </div>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="small fw-bold text-primary">Forma de Envio</label>
+                        <select class="form-select form-select-sm fw-bold text-primary" id="cadPreferencia">
+                        <option value="IMPRESSO" selected>Impresso</option>
+                        <option value="EMAIL">E-mail</option>
+                        <option value="WHATSAPP">WhatsApp</option>
+                        <option value="AMBOS">Ambos (E-mail + WhatsApp)</option>
+                        </select>
+                    </div>
+
                     <div class="col-md-12 d-flex align-items-center gap-3 mt-3 pt-2 border-top flex-wrap" id="flagsContainer">
                         <span class="small fw-bold text-muted me-2">ATIVIDADE:</span>
                         
@@ -641,14 +667,23 @@
 
             let extraInfo = (estado.setor === 'PESSOAL' && emp.nit) ? `<span class="nit-badge">NIT: ${emp.nit}</span>` : '';
             let codDisplay = (emp.regime === 'PF' || emp.codigo > 90000) ? '-' : emp.codigo;
-
+            let iconesPref = '';
+            if (emp.preferencia === 'EMAIL' || emp.preferencia === 'AMBOS') {
+            iconesPref += `<i class="fa-solid fa-envelope text-primary ms-1" title="Prefere Email" style="font-size: 0.8rem;"></i>`;
+            }
+            if (emp.preferencia === 'WHATSAPP' || emp.preferencia === 'AMBOS') {
+            iconesPref += `<i class="fa-brands fa-whatsapp text-success ms-1" title="Prefere WhatsApp" style="font-size: 0.9rem;"></i>`;
+            }            
+            
             let html = `
                 <td class="fw-bold">${codDisplay}</td>
                 <td style="text-align:left; padding-left:10px;">
-                    <div class="fw-bold text-truncate">${emp.nome}</div>
+                    <div class="fw-bold text-truncate">
+                        ${emp.nome} 
+                        ${iconesPref} </div>
                     <div style="font-size:0.7rem; color:#666;">${emp.cnpj || ''}</div>${extraInfo}
                 </td>
-                <td><span class="badge bg-white text-dark border" style="font-size:0.6rem">${emp.regime === 'SIMPLES' ? 'SN' :emp.regime}</span></td>
+                <td><span class="badge bg-white text-dark border" style="font-size:0.6rem">${emp.regime === 'SIMPLES' ? 'SN' : emp.regime}</span></td>
             `;
 
             // 1. Verifica se já está marcado como Sem Movimento neste mês
@@ -794,6 +829,9 @@
         document.getElementById('cadNome').value = emp.nome;
         document.getElementById('cadCnpj').value = emp.cnpj;
         document.getElementById('cadNit').value = emp.nit || '';
+        document.getElementById('cadEmail').value = emp.email || '';
+        document.getElementById('cadTelefone').value = emp.telefone || '';
+        document.getElementById('cadPreferencia').value = emp.preferencia || 'IMPRESSO'; // Padrão Impresso se não tiver nada
         document.getElementById('cadRegime').value = emp.regime;
         
         document.getElementById('cadComercio').checked = emp.comercio;
@@ -881,6 +919,11 @@
             codigo, nome, regime,
             cnpj: document.getElementById('cadCnpj').value,
             nit: document.getElementById('cadNit').value,
+            // NOVOS CAMPOS AQUI:
+            email: document.getElementById('cadEmail').value.trim(),
+            telefone: document.getElementById('cadTelefone').value.trim(),
+            preferencia: document.getElementById('cadPreferencia').value,
+            // ... restante igual (comercio, servico, obrigacoes...)
             comercio: document.getElementById('cadComercio').checked,
             servico: document.getElementById('cadServico').checked,
             funcionarios: document.getElementById('cadFuncionarios').checked,
@@ -1320,26 +1363,48 @@
         }
     }
 
-    // 1. Enviar pelo WhatsApp
+    // --- FUNÇÕES DE ENVIO INTELIGENTE (COM DESTINATÁRIO) ---
+
+    // 1. Enviar pelo WhatsApp (Usa o telefone cadastrado se tiver)
     window.enviarMensagemReal = function() {
         const texto = document.getElementById('textoFinalWhats').value;
-        // Cria o link do WhatsApp
-        const url = `https://wa.me/?text=${encodeURIComponent(texto)}`;
+        let url = '';
+
+        // Verifica se tem telefone cadastrado
+        if (empresaAtualZap && empresaAtualZap.telefone) {
+            // Limpa o número (deixa só digitos) e adiciona 55 (Brasil)
+            let fone = empresaAtualZap.telefone.replace(/\D/g, '');
+            if(fone.length >= 10) { // Validação básica
+                if(!fone.startsWith('55')) fone = '55' + fone;
+                url = `https://wa.me/${fone}?text=${encodeURIComponent(texto)}`;
+            } else {
+                 // Se número for inválido, abre genérico
+                 url = `https://wa.me/?text=${encodeURIComponent(texto)}`;
+            }
+        } else {
+            // Se não tiver telefone, abre lista de contatos
+            url = `https://wa.me/?text=${encodeURIComponent(texto)}`;
+        }
+        
         window.open(url, '_blank');
         modalWhatsInstance.hide();
     }
 
-    // 2. Enviar pelo Outlook / Hotmail
+    // 2. Enviar pelo Outlook / Hotmail (Usa o email cadastrado se tiver)
     window.enviarOutlookReal = function() {
         let texto = document.getElementById('textoFinalWhats').value;
-        // Remove asteriscos para o email ficar limpo
         const corpoEmail = texto.replace(/\*/g, ''); 
         
         const nomeEmpresa = empresaAtualZap ? empresaAtualZap.nome : "Empresa";
         const assunto = `Guias - ${nomeEmpresa} - ${formatarData(estado.competencia)}`;
 
-        // Link para Outlook Pessoal/Hotmail
-        const url = `https://outlook.live.com/owa/?path=/mail/action/compose&subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(corpoEmail)}`;
+        let destino = '';
+        if (empresaAtualZap && empresaAtualZap.email) {
+            destino = empresaAtualZap.email;
+        }
+
+        // Adicionei o parametro &to= para preencher o destinatário
+        const url = `https://outlook.live.com/owa/?path=/mail/action/compose&to=${encodeURIComponent(destino)}&subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(corpoEmail)}`;
         
         window.open(url, '_blank');
         modalWhatsInstance.hide();
