@@ -757,15 +757,32 @@
     }
 
     function exportarJSON() {
-        let d = {empresas, checks:{}};
-        for(let i=0; i<localStorage.length; i++) {
-            let k = localStorage.key(i);
-            if(k.startsWith('db_checks_') || k.startsWith('obs_')) d.checks[k] = JSON.parse(localStorage.getItem(k));
+        const backup = {
+            empresas: empresas, // O cadastro das empresas
+            dadosLocalStorage: {} // Aqui vamos guardar TODOS os meses e observações
+        };
+
+        // Varre o navegador procurando tudo que é do nosso sistema
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            
+            // Pega chaves que começam com 'db_checks_' (Meses/Setores) 
+            // OU chaves que começam com 'obs_' (O clipe)
+            if (key.startsWith('db_checks_') || key.startsWith('obs_')) {
+                backup.dadosLocalStorage[key] = localStorage.getItem(key);
+            }
         }
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(new Blob([JSON.stringify(d)], {type:'application/json'}));
-        a.download = `backup_contec_${new Date().toISOString().slice(0,10)}.json`;
-        a.click();
+
+        // Gera o arquivo
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backup));
+        const hoje = new Date();
+        const nomeArquivo = `backup_contec_COMPLETO_${hoje.toISOString().split('T')[0]}.json`;
+
+        const link = document.createElement('a');
+        link.href = dataStr;
+        link.download = nomeArquivo;
+        link.click();
+        link.remove();
     }
 
     function importarJSON(inp) {
@@ -775,46 +792,46 @@
         const r = new FileReader();
         r.onload = e => {
             try {
-                // Lê o conteúdo do arquivo
                 const json = JSON.parse(e.target.result);
                 
-                let dadosEmpresas = [];
-                let dadosChecks = {};
-
-                // CASO 1: É o backup antigo? (É apenas uma lista solta)
-                if (Array.isArray(json)) {
-                    dadosEmpresas = json;
-                } 
-                // CASO 2: É o backup novo? (Tem campo 'empresas')
-                else if (json.empresas) {
-                    dadosEmpresas = json.empresas;
-                    if (json.checks) dadosChecks = json.checks;
-                }
-
-                // Se achou empresas, salva na gaveta certa (V13)
-                if (dadosEmpresas.length > 0) {
-                    empresas = dadosEmpresas; // Atualiza a memória
+                // 1. Restaura Cadastro de Empresas
+                // Aceita formato novo (json.empresas) ou antigo (array direto)
+                if (json.empresas) {
+                    empresas = json.empresas;
                     localStorage.setItem('db_contec_empresas_v13', JSON.stringify(empresas));
-                    
-                    // Se tiver checks, restaura também (assumindo que usa a chave db_checks)
-                    if (Object.keys(dadosChecks).length > 0) {
-                        checks = dadosChecks;
-                        localStorage.setItem('db_checks', JSON.stringify(checks));
-                    }
-
-                    alert("Backup restaurado com sucesso! A página será recarregada.");
-                    location.reload(); // Recarrega para mostrar os dados novos
-                } else {
-                    alert("O arquivo não contém uma lista de empresas válida.");
+                } else if (Array.isArray(json)) {
+                    empresas = json;
+                    localStorage.setItem('db_contec_empresas_v13', JSON.stringify(empresas));
                 }
+
+                // 2. Restaura TODOS os dados (Meses, Setores e Observações)
+                if (json.dadosLocalStorage) {
+                    for (const [key, value] of Object.entries(json.dadosLocalStorage)) {
+                        localStorage.setItem(key, value);
+                    }
+                } 
+                
+                // --- SUPORTE PARA O BACKUP QUE VOCÊ FEZ HOJE MAIS CEDO ---
+                // Se o arquivo tiver 'observacoes' separado (código anterior)
+                if (json.observacoes) {
+                    for (const [key, value] of Object.entries(json.observacoes)) {
+                        localStorage.setItem(key, value);
+                    }
+                }
+                // ---------------------------------------------------------
+
+                alert("Backup restaurado com sucesso! Todos os meses e observações atualizados.");
+                location.reload(); 
 
             } catch(x) { 
                 alert("Erro ao ler JSON: " + x); 
             }
         };
         r.readAsText(f);
-        inp.value = ''; // Limpa para permitir carregar o mesmo arquivo se errar
+        inp.value = ''; 
     }
+
+    
 
     function importarExcel(input) {
         const file = input.files[0];
