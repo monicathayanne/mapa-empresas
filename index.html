@@ -186,6 +186,11 @@
                   <i class="fa-solid fa-upload"></i> Restaurar
               </button>
               <input type="file" id="fileInput" accept=".json" style="display: none;" onchange="importarJSON(this)">
+
+              <button class="btn btn-outline-secondary btn-sm fw-bold" onclick="abrirConfigImpostos()" title="Configurar Vencimentos">
+                <i class="fa-solid fa-gear"></i>
+              </button>
+
           </div>
       </div>
 
@@ -375,6 +380,70 @@
             <div class="modal-footer py-1">
                 <button type="button" class="btn btn-secondary btn-sm" onclick="limpar379()">Limpar</button>
                 <button type="button" class="btn btn-dark btn-sm" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<div class="modal fade" id="modalWhats" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white py-2">
+                <h6 class="modal-title fw-bold"><i class="fa-brands fa-whatsapp"></i> Enviar Documentos</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light">
+                <div class="alert alert-light border small mb-2 text-center text-muted py-1">
+                    Confira os impostos de <b><span id="whatsCompetencia"></span></b>.
+                </div>
+                
+                <form id="formWhats">
+                    <div id="listaWhats" class="d-flex flex-column gap-2" style="max-height: 250px; overflow-y: auto;"></div>
+                </form>
+
+                <div class="d-flex gap-2 mt-2">
+                    <select id="selectImpostoExtra" class="form-select form-select-sm">
+                        <option value="">+ Adicionar outro imposto...</option>
+                        </select>
+                    <button class="btn btn-outline-success btn-sm" onclick="adicionarLinhaExtra()" title="Adicionar">
+                        <i class="fa-solid fa-plus"></i>
+                    </button>
+                </div>
+
+                <div class="mt-3 pt-2 border-top">
+                    <label class="small fw-bold text-muted mb-1">Prévia:</label>
+                    <textarea id="textoFinalWhats" class="form-control form-control-sm bg-white border-0" rows="6" readonly style="font-family: monospace;"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer py-1">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success btn-sm fw-bold" onclick="enviarMensagemReal()">
+                    <i class="fa-solid fa-paper-plane"></i> Enviar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalConfigImpostos" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-secondary text-white py-2">
+                <h6 class="modal-title fw-bold"><i class="fa-solid fa-list"></i> Configurar Vencimentos Padrão</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted">Defina o dia padrão. O sistema calculará o mês seguinte automaticamente.</p>
+                
+                <div class="input-group input-group-sm mb-3">
+                    <input type="text" id="novoImpostoNome" class="form-control" placeholder="Nome (Ex: Taxa Alvará)">
+                    <input type="number" id="novoImpostoDia" class="form-control" placeholder="Dia" style="max-width: 70px;">
+                    <button class="btn btn-primary fw-bold" onclick="adicionarImpostoConfig()" style="background-color: var(--azul-contec); border-color: var(--azul-contec);">Adicionar</button>
+                </div>
+
+                <ul class="list-group small" id="listaConfigImpostos" style="max-height: 300px; overflow-y: auto;">
+                    </ul>
             </div>
         </div>
     </div>
@@ -1046,6 +1115,205 @@
         document.getElementById('simPorc').value = "30"; // Reseta a % para 30 padrão
         calc379();
     }
+
+   // === MÓDULO WHATSAPP INTELIGENTE (CORRIGIDO) ===
+
+    const CONFIG_PADRAO = {
+        'das': { nome: 'Simples Nacional', dia: 20 },
+        'icms': { nome: 'ICMS', dia: 20 },
+        'iss': { nome: 'ISS', dia: 10 },
+        'fgts': { nome: 'FGTS Digital', dia: 20 }, // Atualizado nome
+        'inss': { nome: 'INSS (Folha)', dia: 20 },
+        'inss_ind': { nome: 'INSS Individual', dia: 15 },
+        'irrf': { nome: 'IRRF', dia: 20 },
+        'pis_cofins': { nome: 'PIS/COFINS', dia: 25 },
+        'boleto': { nome: 'Honorários CONTEC', dia: 10 },
+        'dctf': { nome: 'DCTFWeb', dia: 15 },
+        'nfse': { nome: 'ISS (NFSe)', dia: 10 }
+    };
+
+    let configImpostos = JSON.parse(localStorage.getItem('db_config_impostos')) || CONFIG_PADRAO;
+
+    let modalWhatsInstance = null;
+    let modalConfigInstance = null;
+    let empresaAtualZap = null;
+
+    // Substitua APENAS a função window.enviarZap por esta:
+
+    window.enviarZap = function(indexOrNome) {
+        let index = indexOrNome;
+        if (typeof indexOrNome === 'string') {
+            index = empresas.findIndex(e => e.nome === indexOrNome.trim());
+        }
+        
+        if (index === -1) return;
+
+        empresaAtualZap = empresas[index];
+        const setor = estado.setor; 
+        
+        // Pega as obrigações
+        let obrigacoes = setor === 'FISCAL' ? empresaAtualZap.obrigacoesFiscal : empresaAtualZap.obrigacoesPessoal;
+        if (!obrigacoes) obrigacoes = [];
+
+        if (!obrigacoes.includes('boleto')) obrigacoes.push('boleto');
+
+        const [ano, mes] = estado.competencia.split('-');
+        const dataBase = new Date(parseInt(ano), parseInt(mes), 1); 
+
+        const listaDiv = document.getElementById('listaWhats');
+        listaDiv.innerHTML = '';
+        document.getElementById('whatsCompetencia').innerText = formatarData(estado.competencia);
+
+        // Preenche o Select de Extras
+        const selectExtra = document.getElementById('selectImpostoExtra');
+        selectExtra.innerHTML = '<option value="">+ Adicionar outro imposto...</option>';
+        Object.keys(configImpostos).sort().forEach(key => {
+            selectExtra.innerHTML += `<option value="${key}">${configImpostos[key].nome}</option>`;
+        });
+
+        // === LISTA DE BLOQUEIO ATUALIZADA ===
+        const ignorar = [
+            // Setor Fiscal
+            'sped', 'efd', 'reinf', 'mit', 'nfce', 'escrit', 
+            'nfe_ent', 'nfe_sai', 'envio', 'sem_movimento', 'nao_acob', 'cartao', 'nfe_servico', 'nf_consumidor',
+            // Setor Pessoal (NOVOS REMOVIDOS)
+            'recibo', 'folha', 'ferias', 
+            'consignado', 'esocial', 'dctf' 
+        ];
+
+        obrigacoes.forEach(id => {
+            // Se estiver na lista negra, não aparece na janela
+            if (ignorar.includes(id)) return;
+
+            let config = configImpostos[id];
+            if (!config) config = { nome: id.toUpperCase(), dia: 10 }; 
+
+            criarLinhaImposto(config.nome, config.dia, dataBase);
+        });
+
+        atualizarTextoPreview();
+
+        if(!modalWhatsInstance) modalWhatsInstance = new bootstrap.Modal(document.getElementById('modalWhats'));
+        modalWhatsInstance.show();
+    }
+
+    // Função auxiliar para desenhar a linha
+    function criarLinhaImposto(nome, diaPadrao, dataBase) {
+        const dia = String(diaPadrao).padStart(2, '0');
+        const mesVenc = String(dataBase.getMonth() + 1).padStart(2, '0');
+        const anoVenc = dataBase.getFullYear();
+        const dataValor = `${anoVenc}-${mesVenc}-${dia}`;
+
+        const div = document.createElement('div');
+        div.className = 'd-flex align-items-center gap-2 bg-white p-2 border rounded shadow-sm';
+        div.innerHTML = `
+            <input class="form-check-input mt-0 check-zap" type="checkbox" checked onchange="atualizarTextoPreview()">
+            <div class="flex-grow-1 small fw-bold text-uppercase text-truncate" title="${nome}">${nome}</div>
+            <input type="date" class="form-control form-control-sm border-0 bg-light fw-bold text-primary date-zap" 
+                   style="width: 125px;" value="${dataValor}" onchange="atualizarTextoPreview()">
+            <input type="hidden" class="nome-zap" value="${nome}">
+            <i class="fa-solid fa-xmark text-danger ms-1" style="cursor:pointer" onclick="this.parentElement.remove(); atualizarTextoPreview()"></i>
+        `;
+        document.getElementById('listaWhats').appendChild(div);
+    }
+
+    // Adiciona imposto extra manualmente na hora
+    window.adicionarLinhaExtra = function() {
+        const select = document.getElementById('selectImpostoExtra');
+        const key = select.value;
+        if(!key) return;
+
+        const config = configImpostos[key];
+        const [ano, mes] = estado.competencia.split('-');
+        const dataBase = new Date(parseInt(ano), parseInt(mes), 1);
+        
+        criarLinhaImposto(config.nome, config.dia, dataBase);
+        atualizarTextoPreview();
+        select.value = ""; // Reseta o select
+    }
+
+    window.atualizarTextoPreview = function() {
+        const linhas = document.querySelectorAll('#listaWhats > div');
+        // Ícones limpos (sem emojis complexos)
+        let msg = `Olá! Segue as guias da Competência: *${formatarData(estado.competencia)}*\n\n`;
+
+        let temItem = false;
+        linhas.forEach(div => {
+            const check = div.querySelector('.check-zap');
+            if (check && check.checked) {
+                const nome = div.querySelector('.nome-zap').value;
+                const dataInput = div.querySelector('.date-zap').value;
+                
+                const [ano, mes, dia] = dataInput.split('-');
+                const dataBr = `${dia}/${mes}/${ano}`;
+
+                // Formatação limpa com traços e bolinhas
+                msg += `*${nome}*\n- Vencimento: ${dataBr}\n\n`;
+                temItem = true;
+            }
+        });
+
+        msg += `Qualquer dúvida estou à disposição!`;
+        document.getElementById('textoFinalWhats').value = msg;
+    }
+
+    // --- FUNÇÕES DA ENGRENAGEM (CONFIGURAÇÃO) ---
+    // Substitua aquela parte final antiga por este bloco completo
+
+    window.abrirConfigImpostos = function() {
+        renderizarListaConfig();
+        if(!modalConfigInstance) modalConfigInstance = new bootstrap.Modal(document.getElementById('modalConfigImpostos'));
+        modalConfigInstance.show();
+    }
+
+    function renderizarListaConfig() {
+        const ul = document.getElementById('listaConfigImpostos');
+        ul.innerHTML = '';
+
+        // Ordena por nome para ficar organizado
+        const chaves = Object.keys(configImpostos).sort();
+
+        chaves.forEach(key => {
+            const item = configImpostos[key];
+            const li = document.createElement('li');
+            li.className = 'list-group-item d-flex justify-content-between align-items-center';
+            li.innerHTML = `
+                <span>${item.nome}</span>
+                <div class="d-flex gap-2 align-items-center">
+                    <span class="badge bg-light text-dark border">Dia ${item.dia}</span>
+                    <i class="fa-solid fa-trash text-danger" style="cursor:pointer" onclick="removerImpostoConfig('${key}')" title="Remover"></i>
+                </div>
+            `;
+            ul.appendChild(li);
+        });
+    }
+
+    window.adicionarImpostoConfig = function() {
+        const nome = document.getElementById('novoImpostoNome').value.trim();
+        const dia = parseInt(document.getElementById('novoImpostoDia').value);
+
+        if (!nome || !dia) return alert("Preencha nome e dia.");
+
+        // Cria um ID interno seguro (Ex: Taxa Incêndio -> taxa_incendio)
+        const id = nome.toLowerCase().replace(/\s+/g, '_').normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        
+        configImpostos[id] = { nome: nome, dia: dia };
+        
+        localStorage.setItem('db_config_impostos', JSON.stringify(configImpostos));
+        
+        document.getElementById('novoImpostoNome').value = '';
+        document.getElementById('novoImpostoDia').value = '';
+        renderizarListaConfig();
+    }
+
+    window.removerImpostoConfig = function(key) {
+        if(confirm(`Remover configuração de "${configImpostos[key].nome}"?`)) {
+            delete configImpostos[key];
+            localStorage.setItem('db_config_impostos', JSON.stringify(configImpostos));
+            renderizarListaConfig();
+        }
+    }
+
   </script>
 </body>
 </html>
