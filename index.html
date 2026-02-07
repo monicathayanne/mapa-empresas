@@ -1067,15 +1067,33 @@
                 const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {header: 1});
                 
                 let count = 0;
+                // Começa do 1 para pular o cabeçalho
                 for(let i=1; i<rows.length; i++) {
                     const r = rows[i];
-                    if(!r[1]) continue; 
+                    if(!r[1]) continue; // Se não tiver nome, pula
                     
                     const nome = String(r[1]).toUpperCase().trim();
                     let codigo = r[0] ? parseInt(r[0]) : 0; 
                     const cnpj = String(r[2]||'').trim();
                     let regimeStr = String(r[3]||'').toUpperCase();
+                    
+                    // Colunas antigas
                     const nit = r[8] ? String(r[8]).trim() : '';
+
+                    // === NOVAS COLUNAS ===
+                    const email = r[9] ? String(r[9]).trim().toLowerCase() : '';
+                    const telefone = r[10] ? String(r[10]).replace(/\D/g, '') : ''; // Remove formatação, deixa só números
+                    let preferencia = r[11] ? String(r[11]).toUpperCase().trim() : 'IMPRESSO';
+
+                    // Valida preferência (se vier escrito errado, cai para IMPRESSO)
+                    const validas = ['IMPRESSO', 'EMAIL', 'WHATSAPP', 'AMBOS'];
+                    if(!validas.includes(preferencia)) {
+                        // Tenta ser inteligente: se tiver @ no texto, assume EMAIL
+                        if(preferencia.includes('MAIL')) preferencia = 'EMAIL';
+                        else if(preferencia.includes('ZAP') || preferencia.includes('WHATS')) preferencia = 'WHATSAPP';
+                        else preferencia = 'IMPRESSO';
+                    }
+                    // =====================
 
                     let regime = 'SN';
                     if(regimeStr.includes('LP')) regime = 'LP';
@@ -1090,13 +1108,16 @@
                     const func = (r[6] && String(r[6]).toUpperCase().includes('S'));
                     const prolab = (r[7] && String(r[7]).toUpperCase().includes('S'));
 
+                    // Cria o objeto com os novos campos
                     const nova = {
                         codigo, nome, cnpj, nit, regime,
+                        email, telefone, preferencia, // <--- ADICIONADOS AQUI
                         comercio: com, servico: serv, funcionarios: func, prolabore: prolab,
                         semMovimento: false,
                         obrigacoesFiscal: [], obrigacoesPessoal: []
                     };
                     
+                    // (Lógica de obrigações sugeridas mantém igual)
                     let fisc = ['envio'], pess = ['envio'];
                     if(regime==='PF') {
                         pess.push('inss_ind','irrf','recibo');
@@ -1116,15 +1137,25 @@
                     nova.obrigacoesFiscal = [...new Set(fisc)];
                     nova.obrigacoesPessoal = [...new Set(pess)];
 
+                    // Atualiza ou Adiciona
                     const idx = empresas.findIndex(x => x.codigo === codigo);
-                    if(idx >= 0) empresas[idx] = nova;
+                    if(idx >= 0) {
+                        // Preserva obrigações customizadas se já existia
+                        nova.obrigacoesFiscal = empresas[idx].obrigacoesFiscal; 
+                        nova.obrigacoesPessoal = empresas[idx].obrigacoesPessoal;
+                        empresas[idx] = nova;
+                    }
                     else empresas.push(nova);
                     count++;
                 }
+                
                 localStorage.setItem('db_contec_empresas_v13', JSON.stringify(empresas));
-                alert(count + " importadas!");
+                alert(count + " empresas importadas/atualizadas com sucesso!");
                 renderizarTabela();
-            } catch(err) { alert("Erro no Excel"); }
+            } catch(err) { 
+                console.error(err);
+                alert("Erro ao ler arquivo Excel. Verifique o formato."); 
+            }
             input.value = '';
         };
         reader.readAsArrayBuffer(file);
