@@ -793,35 +793,54 @@
         r.onload = e => {
             try {
                 const json = JSON.parse(e.target.result);
+                let importouAlgo = false;
                 
-                // 1. Restaura Cadastro de Empresas
-                // Aceita formato novo (json.empresas) ou antigo (array direto)
+                // 1. Restaura EMPRESAS (Funciona em todos os formatos)
                 if (json.empresas) {
                     empresas = json.empresas;
                     localStorage.setItem('db_contec_empresas_v13', JSON.stringify(empresas));
+                    importouAlgo = true;
                 } else if (Array.isArray(json)) {
                     empresas = json;
                     localStorage.setItem('db_contec_empresas_v13', JSON.stringify(empresas));
+                    importouAlgo = true;
                 }
 
-                // 2. Restaura TODOS os dados (Meses, Setores e Observações)
+                // 2. Restaura o BACKUP NOVO (Completo - Todos os meses)
                 if (json.dadosLocalStorage) {
                     for (const [key, value] of Object.entries(json.dadosLocalStorage)) {
                         localStorage.setItem(key, value);
                     }
+                    importouAlgo = true;
                 } 
                 
-                // --- SUPORTE PARA O BACKUP QUE VOCÊ FEZ HOJE MAIS CEDO ---
-                // Se o arquivo tiver 'observacoes' separado (código anterior)
+                // 3. Restaura o BACKUP INTERMEDIÁRIO (Aquele que você tem salvo!)
+                // Se o arquivo tiver 'checks' solto, salvamos no mês atual da tela
+                if (json.checks) {
+                    // Como o formato antigo não dizia o mês, salvamos na competência ATUAL
+                    // Certifique-se de estar na tela de JANEIRO/FISCAL (ou o correto) antes de importar
+                    const key = `db_checks_${estado.competencia}_${estado.setor}`;
+                    localStorage.setItem(key, JSON.stringify(json.checks));
+                    
+                    // Tenta salvar também numa chave genérica por segurança
+                    localStorage.setItem('db_checks', JSON.stringify(json.checks));
+                    importouAlgo = true;
+                }
+
+                // 4. Restaura OBSERVAÇÕES (O clipe)
                 if (json.observacoes) {
                     for (const [key, value] of Object.entries(json.observacoes)) {
                         localStorage.setItem(key, value);
                     }
+                    importouAlgo = true;
                 }
-                // ---------------------------------------------------------
 
-                alert("Backup restaurado com sucesso! Todos os meses e observações atualizados.");
-                location.reload(); 
+                if (importouAlgo) {
+                    alert("Backup restaurado com sucesso! A página será recarregada.");
+                    location.reload(); 
+                } else {
+                    alert("O arquivo não contém dados reconhecidos.");
+                }
 
             } catch(x) { 
                 alert("Erro ao ler JSON: " + x); 
@@ -831,7 +850,6 @@
         inp.value = ''; 
     }
 
-    
 
     function importarExcel(input) {
         const file = input.files[0];
