@@ -676,11 +676,14 @@
             }            
             
             let html = `
-                <td class="fw-bold">${codDisplay}</td>
+                <td class="fw-bold" style="cursor: pointer;" title="Clique para mover de posição" onclick="pularParaPosicao(${index})">
+                    ${codDisplay} <i class="fa-solid fa-arrows-up-down-left-right text-muted opacity-25" style="font-size: 0.6rem;"></i>
+                </td>
+                
                 <td style="text-align:left; padding-left:10px;">
                     <div class="fw-bold text-truncate">
-                        ${emp.nome} 
-                        ${iconesPref} </div>
+                        ${emp.nome} ${iconesPref}
+                    </div>
                     <div style="font-size:0.7rem; color:#666;">${emp.cnpj || ''}</div>${extraInfo}
                 </td>
                 <td><span class="badge bg-white text-dark border" style="font-size:0.6rem">${emp.regime === 'SIMPLES' ? 'SN' : emp.regime}</span></td>
@@ -735,12 +738,19 @@
             html += `<td class="fw-bold">${icone}</td>
                      <td>
                         <div class="action-icons">
+                            <div class="d-flex flex-column justify-content-center me-2 border-end pe-1">
+                                <i class="fa-solid fa-caret-up text-secondary" style="cursor:pointer; font-size: 0.9rem;" onclick="moverEmpresa(${index}, -1)" title="Subir"></i>
+                                <i class="fa-solid fa-caret-down text-secondary" style="cursor:pointer; font-size: 0.9rem;" onclick="moverEmpresa(${index}, 1)" title="Descer"></i>
+                            </div>
+
                             <i class="fa-solid fa-paperclip btn-obs" title="Obs" onclick="toggleObs(${index})"></i>
-                            <i class="fa-solid fa-paper-plane btn-whats" title="WhatsApp" onclick="enviarZap('${emp.nome}')"></i>                            
+                            <i class="fa-brands fa-whatsapp btn-whats" title="Enviar Docs" onclick="enviarZap(${index})"></i>
+                            
                             <i class="fa-solid fa-pencil btn-edit" title="Editar" onclick="editarEmpresa(${index})"></i>
                             <i class="fa-solid fa-trash btn-del" title="Excluir" onclick="deletar(${index})"></i>
                         </div>
                      </td>`;
+            
             tr.innerHTML = html;
             tbody.appendChild(tr);
 
@@ -1439,6 +1449,79 @@
         
         window.open(url, '_blank');
         modalWhatsInstance.hide();
+    }
+
+    // --- FUNÇÕES DE REORDENAR (MOVER EMPRESAS) ---
+
+    // 1. Mover com as setinhas (Um por vez)
+    window.moverEmpresa = function(indexAtual, direcao) {
+        // Verifica se tem filtro de texto ativo (para evitar bagunça visual)
+        const termo = document.getElementById('buscaEmpresa').value;
+        if(termo) {
+            alert("Para reordenar, limpe o campo de busca primeiro.");
+            return;
+        }
+
+        const novoIndex = indexAtual + direcao;
+
+        // Proteção para não subir o primeiro ou descer o último
+        if (novoIndex < 0 || novoIndex >= empresas.length) return;
+
+        // Troca de lugar (Swap)
+        const temp = empresas[indexAtual];
+        empresas[indexAtual] = empresas[novoIndex];
+        empresas[novoIndex] = temp;
+
+        salvarERenderizarOrdem();
+    }
+
+    // 2. Mover digitando a posição (Pulo Mágico)
+    window.pularParaPosicao = function(indexAtual) {
+        const termo = document.getElementById('buscaEmpresa').value;
+        if(termo) {
+            alert("Para reordenar, limpe o campo de busca primeiro.");
+            return;
+        }
+
+        const empresa = empresas[indexAtual];
+        // Mostra a posição atual (index + 1 porque humanos contam a partir do 1)
+        const posicaoAtual = indexAtual + 1;
+        
+        const novaPosicaoStr = prompt(`A empresa "${empresa.nome}" está na linha ${posicaoAtual}.\n\nPara qual linha deseja mover?`);
+        
+        if (!novaPosicaoStr) return; // Cancelou
+        
+        const novaPosicao = parseInt(novaPosicaoStr);
+        
+        // Validação
+        if (isNaN(novaPosicao) || novaPosicao < 1 || novaPosicao > empresas.length) {
+            alert("Posição inválida!");
+            return;
+        }
+
+        // Ajusta para índice de array (começa em 0)
+        const indexDestino = novaPosicao - 1;
+
+        // Mágica do Javascript para mover array (Splice)
+        // 1. Remove do lugar antigo
+        empresas.splice(indexAtual, 1);
+        // 2. Insere no lugar novo
+        empresas.splice(indexDestino, 0, empresa);
+
+        salvarERenderizarOrdem();
+    }
+
+    // Função auxiliar para salvar e atualizar a tela
+    function salvarERenderizarOrdem() {
+        localStorage.setItem('db_contec_empresas_v13', JSON.stringify(empresas));
+        
+        // Efeito visual rápido para mostrar que atualizou
+        const tbody = document.getElementById('tabelaCorpo');
+        tbody.style.opacity = '0.5';
+        setTimeout(() => {
+            renderizarTabela();
+            tbody.style.opacity = '1';
+        }, 150);
     }
 
   </script>
