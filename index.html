@@ -196,12 +196,16 @@
 
 
       <div class="progress-container mb-3">
-          <div class="d-flex justify-content-between mb-1">
-              <small class="fw-bold" style="color: var(--azul-contec);">Progresso do Mês</small>
-              <small class="fw-bold" id="progressoTexto">0%</small>
+          <div class="d-flex justify-content-between align-items-end mb-1">
+              <div>
+                  <span class="fw-bold" style="color: var(--azul-contec);">Progresso do Mês</span>
+                  <span id="fraseMotivacional" class="ms-2 small fw-bold" style="font-size: 0.85rem; transition: color 0.5s;"></span>
+              </div>
+              <span class="fw-bold small" id="progressoTexto" style="font-size: 0.9rem;">0% (0/0)</span>
           </div>
-          <div class="progress" style="height: 18px;">
-              <div id="barraProgresso" class="progress-bar progress-bar-striped" role="progressbar" style="width: 0%"></div>
+          
+          <div class="progress" style="height: 20px; font-size: 0.9rem; border-radius: 4px;">
+              <div id="barraProgresso" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%; font-weight: bold;">0%</div>
           </div>
       </div>
 
@@ -621,6 +625,7 @@
         const termo = document.getElementById('buscaEmpresa').value.toUpperCase();
         const colunas = estado.setor === 'FISCAL' ? COLUNAS_FISCAL : COLUNAS_PESSOAL;
 
+        // Cabeçalho (Padrão)
         let htmlHead = `<tr>
             <th rowspan="2" style="width:35px; vertical-align: middle;">Cód</th>
             <th rowspan="2" style="padding:0;">
@@ -635,51 +640,81 @@
 
         tbody.innerHTML = '';
         
-        let total = 0, concluidos = 0;
+        // === VARIÁVEIS DE CONTAGEM ===
+        let totalEmpresas = 0;
+        let concluidasEmpresas = 0;
+        let totalCaixinhas = 0;   
+        let caixinhasFeitas = 0;  
+        // ============================
 
         empresas.forEach((emp, index) => {
             const codigoStr = String(emp.codigo);
-            if (estado.setor === 'FISCAL'&& emp.ativoFiscal === false)
-            return;
-
-            if (estado.setor === 'PESSOAL'&& emp.ativoPessoal === false)
-            return;
-
+            if (estado.setor === 'FISCAL' && emp.ativoFiscal === false) return;
+            if (estado.setor === 'PESSOAL' && emp.ativoPessoal === false) return;
             if (termo && !emp.nome.includes(termo) && codigoStr !== termo && !emp.cnpj.includes(termo)) return;
 
             let obrigacoes = estado.setor === 'FISCAL' ? (emp.obrigacoesFiscal||[]) : (emp.obrigacoesPessoal||[]);
             
-            // Fallback
+            // Regra de Fallback (Se não tiver nada, assume Envio)
             if(obrigacoes.length === 0) {
                if(emp.regime === 'PF' && estado.setor === 'PESSOAL') obrigacoes = ['inss_ind', 'irrf', 'recibo', 'envio'];
                else if(!emp.semMovimento) obrigacoes = ['envio'];
             }
 
-            const isSemMovimento = obrigacoes.length === 0;
+            // Verifica se essa empresa foi marcada como S/M na tabela (Checkbox S/M)
+            const keySM = `sm_${emp.codigo}_${estado.competencia}`;
+            const isMarcadoSM = checks[keySM] === true;
+            
+            // Verifica se ela é S/M de nascença (Cadastro) OU se foi marcada agora
+            const isSemMovimentoNativo = obrigacoes.length === 0;
+            const isLinhaSemMovimento = isSemMovimentoNativo || isMarcadoSM;
+
             const statusKey = `ok_${emp.codigo}_${estado.competencia}_${estado.setor}`;
             const isOk = checks[statusKey] === true;
 
-            if(!isSemMovimento) { total++; if(isOk) concluidos++; }
+            totalEmpresas++;
+
+            // --- LÓGICA DE PROGRESSO CORRIGIDA ---
+            if (isLinhaSemMovimento) {
+                // Se é S/M (Nativo ou Marcado), a empresa conta como 1 tarefa única
+                totalCaixinhas++;
+                
+                // Se for Nativo, já nasce feita. Se for Marcado, depende do check.
+                // Mas como 'isLinhaSemMovimento' é true se estiver marcado, então está feito.
+                if (isMarcadoSM || isSemMovimentoNativo) {
+                    caixinhasFeitas++;
+                    concluidasEmpresas++;
+                }
+            } else {
+                // Se NÃO é S/M, conta os impostos normais
+                if (isOk) concluidasEmpresas++;
+                
+                colunas.forEach(col => {
+                    if (col.id !== 'sem_movimento' && obrigacoes.includes(col.id)) {
+                        totalCaixinhas++;
+                        if(checks[`${emp.codigo}_${col.id}`]) {
+                            caixinhasFeitas++;
+                        }
+                    }
+                });
+            }
+            // -------------------------------------
 
             const tr = document.createElement('tr');
-            if(isSemMovimento) tr.classList.add('linha-sem-movimento');
+            if(isLinhaSemMovimento) tr.classList.add('linha-sem-movimento');
             else if(isOk) tr.classList.add('linha-concluida');
 
             let extraInfo = (estado.setor === 'PESSOAL' && emp.nit) ? `<span class="nit-badge">NIT: ${emp.nit}</span>` : '';
             let codDisplay = (emp.regime === 'PF' || emp.codigo > 90000) ? '-' : emp.codigo;
-            let iconesPref = '';
-            if (emp.preferencia === 'EMAIL' || emp.preferencia === 'AMBOS') {
-            iconesPref += `<i class="fa-solid fa-envelope text-primary ms-1" title="Prefere Email" style="font-size: 0.8rem;"></i>`;
-            }
-            if (emp.preferencia === 'WHATSAPP' || emp.preferencia === 'AMBOS') {
-            iconesPref += `<i class="fa-brands fa-whatsapp text-success ms-1" title="Prefere WhatsApp" style="font-size: 0.9rem;"></i>`;
-            }            
             
+            let iconesPref = '';
+            if (emp.preferencia === 'EMAIL' || emp.preferencia === 'AMBOS') iconesPref += `<i class="fa-solid fa-envelope text-primary ms-1" style="font-size: 0.8rem;"></i>`;
+            if (emp.preferencia === 'WHATSAPP' || emp.preferencia === 'AMBOS') iconesPref += `<i class="fa-brands fa-whatsapp text-success ms-1" style="font-size: 0.9rem;"></i>`;
+
             let html = `
-                <td class="fw-bold" style="cursor: pointer;" title="Clique para mover de posição" onclick="pularParaPosicao(${index})">
+                <td class="fw-bold" style="cursor: pointer;" title="Clique para mover" onclick="pularParaPosicao(${index})">
                     ${codDisplay} <i class="fa-solid fa-arrows-up-down-left-right text-muted opacity-25" style="font-size: 0.6rem;"></i>
                 </td>
-                
                 <td style="text-align:left; padding-left:10px;">
                     <div class="fw-bold text-truncate">
                         ${emp.nome} ${iconesPref}
@@ -689,41 +724,24 @@
                 <td><span class="badge bg-white text-dark border" style="font-size:0.6rem">${emp.regime === 'SIMPLES' ? 'SN' : emp.regime}</span></td>
             `;
 
-            // 1. Verifica se já está marcado como Sem Movimento neste mês
-            const keySM = `sm_${emp.codigo}_${estado.competencia}`;
-            const isSM = checks[keySM] === true;
-
             let nec = 0, marc = 0;
 
             colunas.forEach(col => {
-                // SE FOR A COLUNA S/M (Obriga a aparecer o checkbox)
                 if (col.id === 'sem_movimento') {
-                    const checked = isSM ? 'checked' : '';
-                    
-                    // Atenção: Aqui desenhamos o input direto, sem verificar obrigações
-                    html += `<td class="text-center">
-                                <input type="checkbox" 
-                                       class="form-check-input" 
-                                       style="margin: 0 auto;"
-                                       onchange="toggleSM('${emp.codigo}')" 
-                                       ${checked}>
-                             </td>`;
-                } 
-                // SE FOR OUTRA COLUNA (Impostos normais)
-                else {
-                    // Se estiver S/M, mostra tracinho "-"
-                    if (isSM) {
+                    // Checkbox S/M sempre aparece
+                    const checked = isMarcadoSM ? 'checked' : '';
+                    html += `<td class="text-center"><input type="checkbox" class="form-check-input" style="margin: 0 auto;" onchange="toggleSM('${emp.codigo}')" ${checked}></td>`;
+                } else {
+                    // Se a linha for S/M (porque marcou o check ou porque é nativa), mostra traço
+                    if (isLinhaSemMovimento) {
                         html += `<td class="text-center text-muted">-</td>`;
-                    } 
-                    // Se não, segue a vida normal
-                    else {
+                    } else {
+                        // Se não for S/M, mostra os checkboxes dos impostos
                         if (obrigacoes.includes(col.id)) {
                             nec++;
-                            // Verifica se está feito
                             const isFeito = checks[emp.codigo + '_' + col.id]; 
                             const checked = isFeito ? 'checked' : '';
                             if(checked) marc++;
-                            
                             html += `<td><input type="checkbox" class="check-fiscal" onchange="toggleCheck('${emp.codigo}', '${col.id}')" ${checked}></td>`;
                         } else {
                             html += `<td class="celula-na"></td>`;
@@ -732,22 +750,21 @@
                 }
             });
 
-            const icone = isSemMovimento ? '<small>S/M</small>' : (isOk ? '<i class="fa-solid fa-check text-success"></i>' : '');
+            // Ícone de OK ou S/M na coluna final
+            const icone = isLinhaSemMovimento ? '<small>S/M</small>' : (isOk ? '<i class="fa-solid fa-check text-success"></i>' : '');
             
-            // COLUNA DE AÇÕES (HORIZONTAL)
             html += `<td class="fw-bold">${icone}</td>
                      <td>
                         <div class="action-icons">
                             <div class="d-flex flex-column justify-content-center me-2 border-end pe-1">
-                                <i class="fa-solid fa-caret-up text-secondary" style="cursor:pointer; font-size: 0.9rem;" onclick="moverEmpresa(${index}, -1)" title="Subir"></i>
-                                <i class="fa-solid fa-caret-down text-secondary" style="cursor:pointer; font-size: 0.9rem;" onclick="moverEmpresa(${index}, 1)" title="Descer"></i>
+                                <i class="fa-solid fa-caret-up text-secondary" style="cursor:pointer; font-size: 0.9rem;" onclick="moverEmpresa(${index}, -1)"></i>
+                                <i class="fa-solid fa-caret-down text-secondary" style="cursor:pointer; font-size: 0.9rem;" onclick="moverEmpresa(${index}, 1)"></i>
                             </div>
-
-                            <i class="fa-solid fa-paperclip btn-obs" title="Obs" onclick="toggleObs(${index})"></i>
-                            <i class="fa-brands fa-whatsapp btn-whats" title="Enviar Docs" onclick="enviarZap(${index})"></i>
-                            
-                            <i class="fa-solid fa-pencil btn-edit" title="Editar" onclick="editarEmpresa(${index})"></i>
-                            <i class="fa-solid fa-trash btn-del" title="Excluir" onclick="deletar(${index})"></i>
+                            <i class="fa-solid fa-paperclip btn-obs" onclick="toggleObs(${index})"></i>
+                            <i class="fa-brands fa-whatsapp btn-whats" onclick="enviarZap(${index})"></i>
+                            <i class="fa-solid fa-envelope text-primary" onclick="enviarOutlookReal(${index})" title="Email" style="cursor:pointer"></i>
+                            <i class="fa-solid fa-pencil btn-edit" onclick="editarEmpresa(${index})"></i>
+                            <i class="fa-solid fa-trash btn-del" onclick="deletar(${index})"></i>
                         </div>
                      </td>`;
             
@@ -760,26 +777,63 @@
             trObs.innerHTML = `<td colspan="${colunas.length+5}"><textarea class="obs-textarea" placeholder="Observações..." onblur="salvarObs('${emp.codigo}', this.value)">${obsValue}</textarea></td>`;
             tbody.appendChild(trObs);
 
-            if(!isSemMovimento && nec > 0) {
+            // Validação automática de OK (Para linhas normais)
+            if(!isLinhaSemMovimento && nec > 0) {
                 const complete = marc === nec;
                 if(complete !== isOk) {
                     checks[statusKey] = complete;
                     salvarChecks();
-                    setTimeout(renderizarTabela, 50);
+                    setTimeout(renderizarTabela, 50); // Recarrega para pintar de verde
                 }
             }
         });
         
-        atualizarProgresso(total, concluidos);
+        atualizarProgresso(totalEmpresas, concluidasEmpresas, totalCaixinhas, caixinhasFeitas);
     }
 
-    function atualizarProgresso(total, concluidos) {
-        const pct = total === 0 ? 0 : Math.round((concluidos/total)*100);
+    // === NOVA FUNÇÃO DE PROGRESSO (CORES E FRASES) ===
+    function atualizarProgresso(empTotal, empConcluidas, boxTotal, boxFeitas) {
+        const pct = boxTotal === 0 ? 0 : Math.round((boxFeitas / boxTotal) * 100);
+
         const bar = document.getElementById('barraProgresso');
+        const txtTexto = document.getElementById('progressoTexto');
+        const txtFrase = document.getElementById('fraseMotivacional');
+
+        // Formato antigo: "49% (34/68)"
         bar.style.width = `${pct}%`;
-        document.getElementById('progressoTexto').innerText = `${pct}% (${concluidos}/${total})`;
-        bar.className = `progress-bar progress-bar-striped ${pct===100?'bg-success':''}`;
-        if(pct!==100) bar.style.backgroundColor = 'var(--azul-contec)';
+        bar.innerText = `${pct}%`; // Mostra % dentro da barra também (como no print antigo)
+        txtTexto.innerText = `${pct}% (${empConcluidas}/${empTotal})`;
+
+        // Lógica de Cores e Frases
+        let cor = '';
+        let frase = '';
+        let icone = '';
+
+        if (pct === 100) {
+            cor = '#198754'; // Verde
+            frase = "Missão cumprida. Você pode ficar tranquila.";
+            icone = "🎉";
+        } else if (pct >= 61) {
+            cor = '#ffc107'; // Amarelo (Fica melhor texto preto sobre ele, mas vamos manter padrão)
+            frase = "Excelente avanço! Quase lá.";
+            icone = "🚀";
+        } else if (pct >= 21) {
+            cor = '#fd7e14'; // Laranja
+            frase = "Bom progresso! Continue, você está no caminho certo.";
+            icone = "💪";
+        } else {
+            cor = '#dc3545'; // Vermelho
+            frase = "Primeiro passo dado. Quanto antes, melhor!";
+            icone = "☕";
+        }
+
+        // Aplica as cores
+        bar.className = 'progress-bar progress-bar-striped progress-bar-animated'; 
+        bar.style.backgroundColor = cor; 
+        
+        // Atualiza a frase
+        txtFrase.style.color = cor;
+        txtFrase.innerHTML = `${icone} ${frase}`;
     }
 
     function toggleCheck(cod, col) {
