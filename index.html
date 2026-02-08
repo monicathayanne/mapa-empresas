@@ -957,18 +957,46 @@
 
     function deletar(index) {
         const emp = empresas[index];
-        const setorNome = estado.setor === 'FISCAL' ? 'do setor FISCAL': 'do setor PESSOAL';
+        const setor = estado.setor; // 'FISCAL' ou 'PESSOAL'
 
-        if (!confirm(`Deseja remover "${emp.nome}" da lista ${setorNome}?\n(Os dados permanecerão salvos no banco de dados)`))
-        return;
+        // 1. Mensagem de Confirmação Inteligente
+        let msg = `Tem certeza que deseja remover "${emp.nome}" do setor ${setor}?`;
+        
+        // Verifica se a empresa está ativa no OUTRO setor
+        // (Consideramos ativa se tiver obrigações E não tiver sido marcada como false explicitamente)
+        const vivoFiscal = (emp.obrigacoesFiscal && emp.obrigacoesFiscal.length > 0) && emp.ativoFiscal !== false;
+        const vivoPessoal = (emp.obrigacoesPessoal && emp.obrigacoesPessoal.length > 0) && emp.ativoPessoal !== false;
 
-        if (estado.setor === 'FISCAL') {
-            emp.ativoFiscal = false;
+        // Se estou no Fiscal, verifico se está vivo no Pessoal (e vice-versa)
+        const temNoOutro = (setor === 'FISCAL' && vivoPessoal) || (setor === 'PESSOAL' && vivoFiscal);
+
+        if (temNoOutro) {
+            msg += `\n\nℹ️ ELA CONTINUARÁ VISÍVEL no setor ${setor === 'FISCAL' ? 'PESSOAL' : 'FISCAL'}.`;
+        } else {
+            msg += `\n\n🗑️ Isso apagará a empresa DEFINITIVAMENTE do sistema (pois não existe no outro setor).`;
+        }
+
+        if(!confirm(msg)) return;
+
+        // 2. A Correção: Além de limpar a lista, marcamos como INATIVO no setor
+        if (setor === 'FISCAL') {
+            emp.obrigacoesFiscal = []; 
+            emp.ativoFiscal = false; // <--- ISSO IMPEDE QUE ELA REAPAREÇA
+        } else {
+            emp.obrigacoesPessoal = []; 
+            emp.ativoPessoal = false; // <--- ISSO IMPEDE QUE ELA REAPAREÇA
+        }
+
+        // 3. Checagem Final: Se estiver morta nos dois lados, deleta do banco
+        const mortoFiscal = emp.ativoFiscal === false || (!emp.obrigacoesFiscal || emp.obrigacoesFiscal.length === 0);
+        const mortoPessoal = emp.ativoPessoal === false || (!emp.obrigacoesPessoal || emp.obrigacoesPessoal.length === 0);
+
+        if (mortoFiscal && mortoPessoal) {
+            empresas.splice(index, 1); // Remove fisicamente do Array
         }
 
         localStorage.setItem('db_contec_empresas_v13', JSON.stringify(empresas));
         renderizarTabela();
-
     }
 
     function exportarJSON() {
