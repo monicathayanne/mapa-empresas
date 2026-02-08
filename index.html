@@ -286,6 +286,11 @@
                         </select>
                     </div>
 
+                    <div class="col-12">
+                        <label class="small fw-bold text-muted">Informações Fixas (Logins, Senhas, Rotinas Específicas)</label>
+                        <textarea class="form-control form-control-sm" id="cadInfo" rows="3" placeholder="Ex: Emissor Nota: Login X / Senha Y..."></textarea>
+                    </div>
+
                     <div class="col-md-12 d-flex align-items-center gap-3 mt-3 pt-2 border-top flex-wrap" id="flagsContainer">
                         <span class="small fw-bold text-muted me-2">ATIVIDADE:</span>
                         
@@ -480,6 +485,33 @@
 
                 <ul class="list-group small" id="listaConfigImpostos" style="max-height: 300px; overflow-y: auto;">
                     </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalDetalhes" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header py-2" style="background-color: var(--azul-contec); color: white;">
+                <h6 class="modal-title fw-bold" id="tituloDetalhes">Nome da Empresa</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                        <h6 class="small fw-bold text-muted mb-2 border-bottom pb-1">
+                            <i class="fa-solid fa-circle-info me-1"></i> Informações Fixas / Rotinas / Senhas
+                        </h6>
+                        <div id="conteudoDetalhes" style="white-space: pre-wrap; font-family: monospace; font-size: 0.85rem; color: #333;"></div>
+                    </div>
+                </div>
+                
+                <div class="text-end mt-3">
+                    <button class="btn btn-sm btn-outline-primary" id="btnEditarDetalhes">
+                        <i class="fa-solid fa-pencil"></i> Editar Dados
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -715,14 +747,22 @@
                 <td class="fw-bold" style="cursor: pointer;" title="Clique para mover" onclick="pularParaPosicao(${index})">
                     ${codDisplay} <i class="fa-solid fa-arrows-up-down-left-right text-muted opacity-25" style="font-size: 0.6rem;"></i>
                 </td>
+                
                 <td style="text-align:left; padding-left:10px;">
-                    <div class="fw-bold text-truncate">
-                        ${emp.nome} ${iconesPref}
+                    <div class="fw-bold text-truncate text-dark" 
+                         style="cursor: pointer;" 
+                         onclick="verDetalhes(${index})" 
+                         title="Clique para ver Logins e Informações">
+                        ${emp.nome} ${iconesPref} <i class="fa-solid fa-circle-info opacity-50 ms-1" style="font-size: 0.7rem;"></i>
                     </div>
                     <div style="font-size:0.7rem; color:#666;">${emp.cnpj || ''}</div>${extraInfo}
                 </td>
                 <td><span class="badge bg-white text-dark border" style="font-size:0.6rem">${emp.regime === 'SIMPLES' ? 'SN' : emp.regime}</span></td>
             `;
+           
+                
+
+            
 
             let nec = 0, marc = 0;
 
@@ -791,7 +831,7 @@
         atualizarProgresso(totalEmpresas, concluidasEmpresas, totalCaixinhas, caixinhasFeitas);
     }
 
-    // === NOVA FUNÇÃO DE PROGRESSO (CORES E FRASES) ===
+    // === FUNÇÃO DE PROGRESSO (CORES E FRASES) ===
     function atualizarProgresso(empTotal, empConcluidas, boxTotal, boxFeitas) {
         const pct = boxTotal === 0 ? 0 : Math.round((boxFeitas / boxTotal) * 100);
 
@@ -888,6 +928,7 @@
         const emp = empresas[index];
         document.getElementById('editIndex').value = index;
         document.getElementById('modalTitle').innerText = "Editar: " + emp.nome;
+        document.getElementById('cadInfo').value = emp.info || '';
         
         document.getElementById('cadCodigo').value = (emp.regime === 'PF' || emp.codigo > 90000) ? "" : emp.codigo;
         document.getElementById('cadNome').value = emp.nome;
@@ -987,14 +1028,16 @@
             email: document.getElementById('cadEmail').value.trim(),
             telefone: document.getElementById('cadTelefone').value.trim(),
             preferencia: document.getElementById('cadPreferencia').value,
-            // ... restante igual (comercio, servico, obrigacoes...)
+            info: document.getElementById('cadInfo').value,
             comercio: document.getElementById('cadComercio').checked,
             servico: document.getElementById('cadServico').checked,
             funcionarios: document.getElementById('cadFuncionarios').checked,
             prolabore: document.getElementById('cadProlabore').checked,
             semMovimento: document.getElementById('cadSemMovimento').checked,
             obrigacoesFiscal: fisc,
-            obrigacoesPessoal: pess
+            obrigacoesPessoal: pess,
+            ativoFiscal: empresas[parseInt(document.getElementById('editIndex').value)]?.ativoFiscal !== false,
+            ativoPessoal: empresas[parseInt(document.getElementById('editIndex').value)]?.ativoPessoal !== false
         };
 
         const idx = parseInt(document.getElementById('editIndex').value);
@@ -1604,6 +1647,29 @@
             renderizarTabela();
             tbody.style.opacity = '1';
         }, 150);
+    }
+
+    // --- FUNÇÃO PARA VER A FICHA DA EMPRESA ---
+    window.verDetalhes = function(index) {
+        const emp = empresas[index];
+        
+        // Preenche o Título
+        document.getElementById('tituloDetalhes').innerHTML = `<i class="fa-solid fa-building me-2"></i> ${emp.nome}`;
+        
+        // Preenche o Conteúdo (Se não tiver nada, avisa)
+        const texto = emp.info ? emp.info : "Nenhuma informação adicional cadastrada.";
+        document.getElementById('conteudoDetalhes').innerText = texto; // innerText preserva as quebras de linha
+        
+        // Configura o botão de editar direto do modal de detalhes
+        document.getElementById('btnEditarDetalhes').onclick = function() {
+            // Fecha este modal e abre o de edição
+            const modalDet = bootstrap.Modal.getInstance(document.getElementById('modalDetalhes'));
+            modalDet.hide();
+            editarEmpresa(index);
+        };
+
+        // Abre o Modal
+        new bootstrap.Modal(document.getElementById('modalDetalhes')).show();
     }
 
   </script>
