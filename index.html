@@ -338,25 +338,25 @@
     </div>
   </div>
 
-  <div class="modal fade" id="modalSimulador" tabindex="-1">
+ <div class="modal fade" id="modalSimulador" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header bg-danger text-white py-2">
                 <h6 class="modal-title fw-bold">
-                    <i class="fa-solid fa-scale-unbalanced"></i> Simulador de Faturamento Seguro
+                    <i class="fa-solid fa-scale-unbalanced"></i> Simulador de Faturamento
                 </h6>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body bg-light">
                 <div class="alert alert-light border border-danger text-danger py-2 px-2 small mb-3 text-center">
                     <i class="fa-solid fa-triangle-exclamation"></i>
-                    Simulação para evitar Omissão de Receita (379/380)
+                    Simulação para evitar Omissão de Receita
                 </div>
 
                 <form id="formSimulador">
                     <div class="row g-2 mb-2 align-items-end">
                         <div class="col-7">
-                            <label class="small fw-bold text-muted">Total Entradas (Compras)</label>
+                            <label class="small fw-bold text-muted">Total Compras</label>
                             <div class="input-group input-group-sm">
                                 <span class="input-group-text">R$</span>
                                 <input type="number" class="form-control fw-bold" id="simEntrada" oninput="calc379()" placeholder="0,00">
@@ -371,43 +371,41 @@
                         </div>
                     </div>
 
-                    <div class="row g-2 mb-3">
-                        <div class="col-12 text-end">
-                            <small class="text-muted me-2">Adicional de Margem:</small>
-                            <span id="displayMargem" class="fw-bold text-primary">R$ 0,00</span>
-                        </div>
+                    <div class="text-end mb-2 border-bottom pb-2">
+                        <small class="text-muted me-2">Adicional de Margem:</small>
+                        <span id="displayMargem" class="fw-bold text-primary">R$ 0,00</span>
                     </div>
-
-                    <hr class="my-2">
 
                     <div class="row g-2 mb-2">
-                        <div class="col-6">
-                            <label class="small fw-bold text-muted">Folha Pagamento</label>
-                            <div class="input-group input-group-sm">
-                                <span class="input-group-text">R$</span>
-                                <input type="number" class="form-control" id="simFolha" oninput="calc379()">
-                            </div>
+                        <div class="col-4">
+                            <label class="small fw-bold text-muted">Folha</label>
+                            <input type="number" class="form-control form-control-sm" id="simFolha" oninput="calc379()" placeholder="R$">
                         </div>
-                        <div class="col-6">
-                            <label class="small fw-bold text-muted">Despesas / Custos</label>
-                            <div class="input-group input-group-sm">
-                                <span class="input-group-text">R$</span>
-                                <input type="number" class="form-control" id="simDespesas" oninput="calc379()">
-                            </div>
+                        <div class="col-4">
+                            <label class="small fw-bold text-muted">Despesas</label>
+                            <input type="number" class="form-control form-control-sm" id="simDespesas" oninput="calc379()" placeholder="R$">
                         </div>
+                        <div class="col-4">
+                            <label class="small fw-bold text-muted">Imposto Ant.</label>
+                            <input type="number" class="form-control form-control-sm" id="simImposto" oninput="calc379()" placeholder="R$">
+                        </div>
+                    </div>
+
+                    <div class="row g-2 mt-3">
                         <div class="col-12">
-                            <label class="small fw-bold text-muted">Imposto Mês Anterior (SN)</label>
+                            <label class="small fw-bold text-success"><i class="fa-solid fa-minus"></i> NFCe já emitidas (abater)</label>
                             <div class="input-group input-group-sm">
-                                <span class="input-group-text">R$</span>
-                                <input type="number" class="form-control" id="simImposto" oninput="calc379()">
+                                <span class="input-group-text bg-success text-white border-success">R$</span>
+                                <input type="number" class="form-control fw-bold text-success border-success" id="simNfce" oninput="calc379()" placeholder="0,00">
                             </div>
                         </div>
                     </div>
 
-                    <div class="card bg-warning bg-opacity-10 border-warning mt-4">
+                    <div class="card bg-warning bg-opacity-10 border-warning mt-3">
                         <div class="card-body text-center py-3">
-                            <small class="text-muted fw-bold d-block mb-1">FATURAMENTO MÍNIMO SUGERIDO</small>
+                            <small class="text-muted fw-bold d-block mb-1">DIFERENÇA A FATURAR (Sugestão)</small>
                             <h3 class="fw-bold text-dark mb-0" id="simTotal">R$ 0,00</h3>
+                            <small class="text-muted" id="simTotalBruto" style="font-size: 0.7rem;">TOTAL FATURAMENTO MÍNIMO SUGERIDO: R$ 0,00</small>
                         </div>
                     </div>
                 </form>
@@ -1304,33 +1302,46 @@
         reader.readAsArrayBuffer(file);
     }
 
-    // --- SIMULADOR EVENTO 379/380 ---
+    // --- SIMULADOR EVENTO 379/380 (ATUALIZADO) ---
     let modalSimInstance = null;
 
     function abrirSimulador() {
         if(!modalSimInstance) modalSimInstance = new bootstrap.Modal(document.getElementById('modalSimulador'));
         modalSimInstance.show();
-        // Não limpa automaticamente para você poder comparar valores se fechar e abrir sem querer
     }
 
     function calc379() {
         // Pega os valores (se estiver vazio considera 0)
         const entrada = parseFloat(document.getElementById('simEntrada').value) || 0;
         const porc = parseFloat(document.getElementById('simPorc').value) || 0;
+        
         const folha = parseFloat(document.getElementById('simFolha').value) || 0;
         const despesas = parseFloat(document.getElementById('simDespesas').value) || 0;
         const imposto = parseFloat(document.getElementById('simImposto').value) || 0;
+        
+        // NOVO CAMPO: NFCe para abater
+        const nfce = parseFloat(document.getElementById('simNfce').value) || 0;
 
-        // 1. Calcula o valor da margem (Ex: 30% de 3.000 = 900)
+        // 1. Calcula a margem sobre as compras
         const valorMargem = entrada * (porc / 100);
 
-        // 2. Soma tudo conforme sua planilha
-        // Total = Entrada + Margem + Folha + Despesas + Imposto
-        const total = entrada + valorMargem + folha + despesas + imposto;
+        // 2. Calcula o Total Bruto Necessário (Sem descontar nada)
+        const totalBruto = entrada + valorMargem + folha + despesas + imposto;
 
-        // Atualiza a tela com formatação R$
+        // 3. Calcula a Diferença (Total Bruto - O que já foi emitido em NFCe)
+        let diferenca = totalBruto - nfce;
+
+        // Se a diferença for negativa (emitiu mais que o necessário), mostra 0 ou valor negativo
+        // Vamos deixar negativo se for o caso, pra você ver que está sobrando crédito
+        
+        // Atualiza a tela
         document.getElementById('displayMargem').innerText = valorMargem.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'});
-        document.getElementById('simTotal').innerText = total.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'});
+        
+        // Mostra o resultado final (Diferença)
+        document.getElementById('simTotal').innerText = diferenca.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'});
+        
+        // Mostra pequenininho quanto era o total bruto, só pra conferência
+        document.getElementById('simTotalBruto').innerText = `Total Necessário: ${totalBruto.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}`;
     }
 
     function limpar379() {
