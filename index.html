@@ -817,11 +817,57 @@
             tr.innerHTML = html;
             tbody.appendChild(tr);
 
+            // === BLOCO NOVO: PAINEL DE CONFERÊNCIA OU TEXTAREA ===
             const trObs = document.createElement('tr');
             trObs.id = `obs-row-${index}`; trObs.className = 'obs-row';
-            const obsValue = checks[`obs_${estado.competencia}_${estado.setor}_${emp.codigo}`] || '';
-            trObs.innerHTML = `<td colspan="${colunas.length+5}"><textarea class="obs-textarea" placeholder="Observações..." onblur="salvarObs('${emp.codigo}', this.value)">${obsValue}</textarea></td>`;
+
+            if (estado.setor === 'FISCAL') {
+                // MODO FISCAL: Layout em duas linhas na esquerda + Obs na direita
+                const valEnt = checks[`fisc_ent_val_${estado.competencia}_${emp.codigo}`] || '';
+                const qtdEnt = checks[`fisc_ent_qtd_${estado.competencia}_${emp.codigo}`] || '';
+                const valSai = checks[`fisc_sai_val_${estado.competencia}_${emp.codigo}`] || '';
+                const qtdSai = checks[`fisc_sai_qtd_${estado.competencia}_${emp.codigo}`] || '';
+                const txtObs = checks[`fisc_texto_${estado.competencia}_${emp.codigo}`] || '';
+
+                trObs.innerHTML = `
+                <td colspan="${colunas.length + 5}" class="bg-light p-2">
+                    <div class="row g-2">
+                        <div class="col-auto">
+                            <div class="d-flex flex-column gap-2">
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary" style="width: 80px;">ENTRADAS</span>
+                                    <input type="text" class="form-control form-control-sm fw-bold text-primary" placeholder="R$ 0,00" 
+                                           value="${valEnt}" oninput="formatarMoeda(this)" onblur="salvarObsFiscal('${emp.codigo}', 'ent_val', this.value)" style="width: 110px;">
+                                    <input type="number" class="form-control form-control-sm text-muted text-center" placeholder="Qtd" 
+                                           value="${qtdEnt}" onblur="salvarObsFiscal('${emp.codigo}', 'ent_qtd', this.value)" style="width: 60px;">
+                                </div>
+
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge bg-danger bg-opacity-10 text-danger border border-danger" style="width: 80px;">SAÍDAS</span>
+                                    <input type="text" class="form-control form-control-sm fw-bold text-danger" placeholder="R$ 0,00" 
+                                           value="${valSai}" oninput="formatarMoeda(this)" onblur="salvarObsFiscal('${emp.codigo}', 'sai_val', this.value)" style="width: 110px;">
+                                    <input type="number" class="form-control form-control-sm text-muted text-center" placeholder="Qtd" 
+                                           value="${qtdSai}" onblur="salvarObsFiscal('${emp.codigo}', 'sai_qtd', this.value)" style="width: 60px;">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col">
+                            <textarea class="form-control form-control-sm" placeholder="Observações diversas..." 
+                                      onblur="salvarObsFiscal('${emp.codigo}', 'texto', this.value)"
+                                      style="height: 100%; resize: vertical; min-height: 72px;">${txtObs}</textarea>
+                        </div>
+                    </div>
+                </td>`;
+
+            } else {
+                // MODO PESSOAL: Mantém o Textarea simples
+                const obsValue = checks[`obs_${estado.competencia}_${estado.setor}_${emp.codigo}`] || '';
+                trObs.innerHTML = `<td colspan="${colunas.length+5}"><textarea class="obs-textarea" placeholder="Observações..." onblur="salvarObs('${emp.codigo}', this.value)">${obsValue}</textarea></td>`;
+            }
+
             tbody.appendChild(trObs);
+           
 
             // Validação automática de OK (Para linhas normais)
             if(!isLinhaSemMovimento && nec > 0) {
@@ -1713,6 +1759,26 @@
         
         // (Opcional) Limpa os checkboxes de impostos visualmente pra não confundir
         document.querySelectorAll('.check-zap').forEach(c => c.checked = false);
+    }
+
+    // --- FUNÇÃO PARA SALVAR DADOS FISCAIS DETALHADOS ---
+    window.salvarObsFiscal = function(codigo, tipo, valor) {
+        // Tipos: 'ent_val', 'ent_qtd', 'sai_val', 'sai_qtd', 'texto'
+        const key = `fisc_${tipo}_${estado.competencia}_${codigo}`;
+        checks[key] = valor;
+        salvarChecks();
+    }
+
+    // --- FUNÇÃO PARA MÁSCARA DE MOEDA (R$) ---
+    window.formatarMoeda = function(elm) {
+        let value = elm.value.replace(/\D/g, ""); // Remove tudo que não é número
+        if (value === "") {
+            elm.value = "";
+            return;
+        }
+        // Divide por 100 para considerar os centavos e formata
+        value = (parseInt(value) / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 });
+        elm.value = value;
     }
 
   </script>
