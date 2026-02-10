@@ -154,6 +154,20 @@
              <label>BUSCAR EMPRESA</label>
              <input type="text" id="buscaEmpresa" class="form-control form-control-sm" placeholder="Nome, código, CNPJ..." onkeyup="renderizarTabela()">
           </div>
+
+          <div class="input-group-custom" style="margin-left: 10px;">
+            <label>FILTRAR STATUS</label>
+            <div class="btn-group" role="group">
+                <input type="radio" class="btn-check" name="btnradio" id="btnRadioTodos" autocomplete="off" checked onclick="setFiltro('TODOS')">
+                <label class="btn btn-sm btn-outline-secondary" for="btnRadioTodos">Todos</label>
+
+                <input type="radio" class="btn-check" name="btnradio" id="btnRadioPendentes" autocomplete="off" onclick="setFiltro('PENDENTES')">
+                <label class="btn btn-sm btn-outline-warning" for="btnRadioPendentes">Pendentes</label>
+
+                <input type="radio" class="btn-check" name="btnradio" id="btnRadioConcluidos" autocomplete="off" onclick="setFiltro('CONCLUIDOS')">
+                <label class="btn btn-sm btn-outline-success" for="btnRadioConcluidos">Feitos</label>
+            </div>
+          </div>
       </div>
 
       <div class="d-flex gap-2 mb-3 toolbar flex-wrap align-items-center">
@@ -563,7 +577,8 @@
     const hoje = new Date();
     let estado = {
         competencia: `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`,
-        setor: 'FISCAL'
+        setor: 'FISCAL',
+        filtro: 'TODOS'
     };
 
     let empresas = JSON.parse(localStorage.getItem('db_contec_empresas_v13')) || [];
@@ -595,6 +610,12 @@
         estado.setor = document.getElementById('filtroSetor').value;
         carregarChecks();
         renderizarTabela();
+    }
+
+    // --- FUNÇÃO PARA TROCAR O FILTRO ---
+    window.setFiltro = function(novoFiltro) {
+        estado.filtro = novoFiltro;
+        renderizarTabela(); // Recarrega a tabela aplicando o filtro
     }
 
     function carregarChecks() {
@@ -707,6 +728,20 @@
             const statusKey = `ok_${emp.codigo}_${estado.competencia}_${estado.setor}`;
             const isOk = checks[statusKey] === true;
 
+
+            // === AQUI ENTRA O FILTRO ===
+            // 1. Se filtro é PENDENTES: Esconde quem já está OK (ou S/M feito)
+            if (estado.filtro === 'PENDENTES') {
+                if (isOk) return; 
+                if (isLinhaSemMovimento && isMarcadoSM) return; 
+            }
+
+            // 2. Se filtro é FEITOS: Esconde quem NÃO está OK
+            if (estado.filtro === 'CONCLUIDOS') {
+                if (!isOk && !(isLinhaSemMovimento && isMarcadoSM)) return;
+            }
+            
+            
             totalEmpresas++;
 
             // --- LÓGICA DE PROGRESSO CORRIGIDA ---
