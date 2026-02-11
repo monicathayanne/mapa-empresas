@@ -191,6 +191,10 @@
           <button class="btn btn-danger btn-sm fw-bold ms-2" onclick="abrirSimulador()">
             <i class="fa-solid fa-calculator"></i> Evento 379/380
           </button>
+
+          <button class="btn btn-warning btn-sm fw-bold text-dark" onclick="abrirPadaria()">
+            <i class="fa-solid fa-bread-slice"></i> Padaria/Rest.
+         </button>
           
           <div class="ms-auto d-flex gap-2">
               <button class="btn btn-outline-danger btn-sm fw-bold" onclick="limparTudo()">
@@ -533,6 +537,101 @@
                         <i class="fa-solid fa-pencil"></i> Editar Dados
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<div class="modal fade" id="modalPadaria" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark py-2">
+                <h6 class="modal-title fw-bold">
+                    <i class="fa-solid fa-bread-slice"></i> Padaria & Restaurante
+                </h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light">
+                <div class="alert alert-light border border-warning text-dark py-2 px-2 small mb-3 text-center">
+                    Cálculo de Custo + Distribuição Automática (70% / 30%)
+                </div>
+
+                <form id="formPadaria">
+                    <div class="row g-2 mb-2 align-items-end">
+                        <div class="col-7">
+                            <label class="small fw-bold text-muted">Total Compras (Entrada)</label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text">R$</span>
+                                <input type="text" class="form-control fw-bold" id="padEntrada" oninput="formatarMoeda(this); calcPadaria()" placeholder="0,00">
+                            </div>
+                        </div>
+                        <div class="col-5">
+                            <label class="small fw-bold text-muted">Margem (%)</label>
+                            <div class="input-group input-group-sm">
+                                <input type="number" class="form-control text-center text-primary fw-bold" id="padPorc" value="30" oninput="calcPadaria()">
+                                <span class="input-group-text">%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-2 mb-2">
+                        <div class="col-12">
+                             <label class="small fw-bold text-muted">Total Despesas (Folha + Prolabore + Impostos + Custos)</label>
+                             <div class="input-group input-group-sm">
+                                <span class="input-group-text">R$</span>
+                                <input type="text" class="form-control" id="padDespesas" oninput="formatarMoeda(this); calcPadaria()" placeholder="Soma de todos os custos">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-2 mt-3">
+                        <div class="col-12">
+                            <label class="small fw-bold text-success"><i class="fa-solid fa-minus"></i> NFCe já emitidas (abater)</label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-success text-white border-success">R$</span>
+                                <input type="text" class="form-control fw-bold text-success border-success" id="padNfce" oninput="formatarMoeda(this); calcPadaria()" placeholder="0,00">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <hr>
+
+                    <label class="small fw-bold text-dark d-block mb-2">DIFERENÇA A LANÇAR (Saídas Não Acobertadas):</label>
+                    
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <div class="card border-primary h-100">
+                                <div class="card-header bg-primary text-white py-1 text-center small fw-bold">70% - Industrializado</div>
+                                <div class="card-body text-center p-2">
+                                    <h5 class="fw-bold text-primary mb-0" id="resPad70">R$ 0,00</h5>
+                                    <small class="d-block text-muted" style="font-size: 0.7rem;">CFOP 5101 (s/sub)</small>
+                                    <span class="badge bg-secondary">Acum: 243</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-6">
+                            <div class="card border-warning h-100">
+                                <div class="card-header bg-warning text-dark py-1 text-center small fw-bold">30% - Substituição</div>
+                                <div class="card-body text-center p-2">
+                                    <h5 class="fw-bold text-dark mb-0" id="resPad30">R$ 0,00</h5>
+                                    <small class="d-block text-muted" style="font-size: 0.7rem;">CFOP 5403 (c/sub)</small>
+                                    <span class="badge bg-secondary">Acum: 242</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center mt-2">
+                        <small class="text-muted fw-bold">TOTAL GERAL DIFERENÇA: <span id="resPadTotal">R$ 0,00</span></small>
+                    </div>
+
+                </form>
+            </div>
+            <div class="modal-footer py-1">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('formPadaria').reset(); calcPadaria()">Limpar</button>
+                <button type="button" class="btn btn-dark btn-sm" data-bs-dismiss="modal">Fechar</button>
             </div>
         </div>
     </div>
@@ -1477,6 +1576,50 @@
         document.getElementById('formSimulador').reset();
         document.getElementById('simPorc').value = "30"; // Reseta a % para 30 padrão
         calc379();
+    }
+
+    // === LÓGICA PADARIA / RESTAURANTE (COM SUPORTE A MÁSCARA) ===
+    let modalPadariaInstance = null;
+
+    function abrirPadaria() {
+        if(!modalPadariaInstance) modalPadariaInstance = new bootstrap.Modal(document.getElementById('modalPadaria'));
+        modalPadariaInstance.show();
+    }
+
+    // Função auxiliar para converter "1.000,00" em número real para cálculo
+    function lerValorFormatado(id) {
+        let val = document.getElementById(id).value;
+        if(!val) return 0;
+        // Remove pontos de milhar e troca vírgula por ponto decimal
+        return parseFloat(val.replace(/\./g, '').replace(',', '.')) || 0;
+    }
+
+    function calcPadaria() {
+        // Pega valores usando a função que limpa a formatação
+        const entrada = lerValorFormatado('padEntrada');
+        const despesas = lerValorFormatado('padDespesas');
+        const nfce = lerValorFormatado('padNfce');
+        
+        // A porcentagem continua normal pois é number
+        const porc = parseFloat(document.getElementById('padPorc').value) || 0;
+
+        // 1. Calcula Margem
+        const margemValor = entrada * (porc / 100);
+
+        // 2. Custo Total Necessário
+        const totalNecessario = entrada + margemValor + despesas;
+
+        // 3. Diferença (O que falta lançar)
+        let diferenca = totalNecessario - nfce;
+        
+        // 4. Distribuição 70% / 30%
+        const parte70 = diferenca * 0.70;
+        const parte30 = diferenca * 0.30;
+
+        // Atualiza Tela
+        document.getElementById('resPadTotal').innerText = diferenca.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'});
+        document.getElementById('resPad70').innerText = parte70.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'});
+        document.getElementById('resPad30').innerText = parte30.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'});
     }
 
    // === MÓDULO WHATSAPP INTELIGENTE (CORRIGIDO) ===
