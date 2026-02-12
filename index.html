@@ -86,6 +86,21 @@
     .btn-obs { color: #fd7e14; }
     .btn-edit { color: var(--azul-contec); }
     .btn-del { color: #dc3545; }
+    
+    
+    /* Bandeirinha de Prioridade */
+    .btn-flag { 
+        color: #ccc; /* Cinza quando desmarcada */
+        cursor: pointer; 
+        font-size: 1rem; 
+        margin-right: 8px; 
+        transition: transform 0.2s;
+    }
+    .btn-flag:hover { transform: scale(1.2); }
+    .btn-flag.active { 
+        color: #dc3545; /* Vermelhão quando marcada */
+        filter: drop-shadow(0 2px 2px rgba(220, 53, 69, 0.3));
+    }
 
     .obs-row { background-color: #fff3cd; display: none; }
     .obs-row.show { display: table-row; }
@@ -642,13 +657,24 @@
         <div class="modal-content">
             <div class="modal-header text-white py-2" style="background-color: #6f42c1;">
                 <h6 class="modal-title fw-bold">
-                    <i class="fa-solid fa-wand-magic-sparkles"></i> Leitor Inteligente de Extratos
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> Leitor Inteligente V8
                 </h6>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body bg-light">
+                
+                <div class="alert alert-warning border-warning text-dark py-2 mb-3">
+                    <label class="fw-bold small mb-1"><i class="fa-solid fa-bank"></i> Qual é o banco desse extrato?</label>
+                    <select id="filtroBanco" class="form-select form-select-sm fw-bold border-warning" onchange="processarExtrato()">
+                        <option value="AUTO">🕵️ Automático - Padrão</option>
+                        <option value="BB">🏦 Banco do Brasil</option>
+                        <option value="NUBANK">💜 Nubank</option>
+                        <option value="CAIXA">🟦 Caixa / Santander / Itaú (Linha única)</option>
+                    </select>
+                </div>
+
                 <div class="alert alert-light border-info text-info small mb-2 text-center">
-                    <i class="fa-solid fa-circle-info"></i> Copie o texto do PDF do banco (CTRL+A, CTRL+C) e cole abaixo.
+                    <i class="fa-solid fa-circle-info"></i> Copie o texto do PDF (CTRL+A, CTRL+C) e cole abaixo.
                 </div>
 
                 <div class="row g-2">
@@ -822,7 +848,112 @@
         return `${mes}/${ano}`;
     }
 
+    // === NOVA FUNÇÃO: BANDEIRINHA DE PRIORIDADE ===
+    window.togglePrioridade = function(index) {
+        // 1. Inverte o status da prioridade (se tem, tira. se não tem, põe)
+        empresas[index].prioridade = !empresas[index].prioridade;
+        
+        
+        // 2. Reordena a lista: Quem tem prioridade vai pro topo
+        // Mantém a ordem relativa dos outros (quem já estava em 15º volta pro 15º aprox.)
+        empresas.sort((a, b) => {
+            // Se 'a' tem prioridade e 'b' não, 'a' vem primeiro (-1)
+            if (a.prioridade === true && b.prioridade !== true) return -1;
+            // Se 'b' tem prioridade e 'a' não, 'b' vem primeiro (1)
+            if (b.prioridade === true && a.prioridade !== true) return 1;
+            // Se ambos forem iguais, mantém a ordem original (0)
+            return 0;
+        });
+
+        // 3. Salva e recarrega a tela
+        localStorage.setItem('db_contec_empresas_v13', JSON.stringify(empresas));
+        renderizarTabela();
+    }
+
+    // === NOVA FUNÇÃO: CÁLCULO REAL DE PROGRESSO (IGNORA FILTROS VISUAIS) ===
+    function calcularProgressoReal() {
+        let totalEmpresas = 0;
+        let concluidasEmpresas = 0;
+        let totalCaixinhas = 0;
+        let caixinhasFeitas = 0;
+        
+        // Pega as colunas certas pra contar as caixinhas
+        const colunas = estado.setor === 'FISCAL' ? COLUNAS_FISCAL : COLUNAS_PESSOAL;
+
+        empresas.forEach(emp => {
+            // 1. O ÚNICO filtro que importa pro progresso é o SETOR
+            // (Ignoramos busca por nome e filtro de pendentes aqui)
+            if (estado.setor === 'FISCAL' && emp.ativoFiscal === false) return;
+            if (estado.setor === 'PESSOAL' && emp.ativoPessoal === false) return;
+
+            totalEmpresas++;
+
+            // Pega as obrigações da empresa
+            let obrigacoes = estado.setor === 'FISCAL' ? (emp.obrigacoesFiscal||[]) : (emp.obrigacoesPessoal||[]);
+
+            // Fallback (igual ao da tabela)
+            if(obrigacoes.length === 0) {
+               if(emp.regime === 'PF' && estado.setor === 'PESSOAL') obrigacoes = ['inss_ind', 'irrf', 'recibo', 'envio'];
+               else if(!emp.semMovimento) obrigacoes = ['envio'];
+            }
+
+            // Checa se é Sem Movimento
+            const keySM = `sm_${emp.codigo}_${estado.competencia}`;
+            const isMarcadoSM = checks[keySM] === true;
+            const isSemMovimentoNativo = obrigacoes.length === 0;
+            const isLinhaSemMovimento = isSemMovimentoNativo || isMarcadoSM;
+
+            // Checa Status OK
+            const statusKey = `ok_${emp.codigo}_${estado.competencia}_${estado.setor}`;
+            const isOk = checks[statusKey] === true;
+
+            // --- CONTAGEM PURA ---
+            if (isLinhaSemMovimento) {
+                // Se é S/M, conta como 1 tarefa
+                totalCaixinhas++;
+                if (isMarcadoSM || isSemMovimentoNativo) {
+                    caixinhasFeitas++;
+                    concluidasEmpresas++;
+                }
+            } else {
+                // Se é Normal
+                if (isOk) concluidasEmpresas++;
+                
+                // Conta cada caixinha individual
+                colunas.forEach(col => {
+                    if (col.id !== 'sem_movimento' && obrigacoes.includes(col.id)) {
+                        totalCaixinhas++;
+                        if(checks[`${emp.codigo}_${col.id}`]) {
+                            caixinhasFeitas++;
+                        }
+                    }
+                });
+            }
+        });
+
+        // Atualiza a barra com os dados reais calculados à parte
+        atualizarProgresso(totalEmpresas, concluidasEmpresas, totalCaixinhas, caixinhasFeitas);
+    }
+
+
     function renderizarTabela() {
+        empresas.forEach((emp, i) => {
+            if (emp.ordem === undefined) emp.ordem = i;
+        });
+
+        calcularProgressoReal(); 
+    
+        //ORDEM DE PRIORIDADE
+
+        empresas.sort((a, b) => {
+            // Critério 1: Prioridade (Quem tem, sobe)
+            if (a.prioridade === true && b.prioridade !== true) return -1;
+            if (b.prioridade === true && a.prioridade !== true) return 1;
+        
+            //DESEMPATE E VOLTA PARA POSICAO ORIGINAL
+            return (a.ordem || 0) - (b.ordem || 0);
+        });
+              
         const thead = document.getElementById('tabelaHead');
         const tbody = document.getElementById('tabelaCorpo');
         const termo = document.getElementById('buscaEmpresa').value.toUpperCase();
@@ -832,7 +963,7 @@
         let htmlHead = `<tr>
             <th rowspan="2" style="width:50px; vertical-align: middle;">Cód</th>
             <th rowspan="2" style="padding:0;">
-                <div style="display:flex; align-items:center; height:130px; padding-left:10px;">Empresa</div>
+                <div style="display:flex; align-items:center; height:130px; padding-left:10px;">Empresa / Prioridade</div>
             </th>
             <th><div class="th-box"><span class="th-vertical">Regime</span></div></th>`;
         colunas.forEach(c => {
@@ -843,69 +974,55 @@
 
         tbody.innerHTML = '';
         
-        // === VARIÁVEIS DE CONTAGEM ===
+        // === ZERAR CONTADORES ===
         let totalEmpresas = 0;
         let concluidasEmpresas = 0;
-        let totalCaixinhas = 0;   
-        let caixinhasFeitas = 0;  
-        // ============================
+        let totalCaixinhas = 0;    
+        let caixinhasFeitas = 0;   
 
         empresas.forEach((emp, index) => {
-            const codigoStr = String(emp.codigo);
+            // 1. FILTRO DE SETOR (Esse elimina a empresa da contagem e da visão)
             if (estado.setor === 'FISCAL' && emp.ativoFiscal === false) return;
             if (estado.setor === 'PESSOAL' && emp.ativoPessoal === false) return;
-            if (termo && !emp.nome.includes(termo) && codigoStr !== termo && !emp.cnpj.includes(termo)) return;
 
             let obrigacoes = estado.setor === 'FISCAL' ? (emp.obrigacoesFiscal||[]) : (emp.obrigacoesPessoal||[]);
             
-            // Regra de Fallback (Se não tiver nada, assume Envio)
+            // Fallback de obrigações
             if(obrigacoes.length === 0) {
                if(emp.regime === 'PF' && estado.setor === 'PESSOAL') obrigacoes = ['inss_ind', 'irrf', 'recibo', 'envio'];
                else if(!emp.semMovimento) obrigacoes = ['envio'];
             }
 
-            // Verifica se essa empresa foi marcada como S/M na tabela (Checkbox S/M)
+            // Checagens de Status
             const keySM = `sm_${emp.codigo}_${estado.competencia}`;
             const isMarcadoSM = checks[keySM] === true;
-            
-            // Verifica se ela é S/M de nascença (Cadastro) OU se foi marcada agora
             const isSemMovimentoNativo = obrigacoes.length === 0;
             const isLinhaSemMovimento = isSemMovimentoNativo || isMarcadoSM;
-
             const statusKey = `ok_${emp.codigo}_${estado.competencia}_${estado.setor}`;
             const isOk = checks[statusKey] === true;
 
-
-            // === AQUI ENTRA O FILTRO ===
-            // 1. Se filtro é PENDENTES: Esconde quem já está OK (ou S/M feito)
+            // Filtros de Status (Pendentes/Concluídos)
             if (estado.filtro === 'PENDENTES') {
                 if (isOk) return; 
                 if (isLinhaSemMovimento && isMarcadoSM) return; 
             }
-
-            // 2. Se filtro é FEITOS: Esconde quem NÃO está OK
             if (estado.filtro === 'CONCLUIDOS') {
                 if (!isOk && !(isLinhaSemMovimento && isMarcadoSM)) return;
             }
             
+            // === 2. CÁLCULO DO PROGRESSO (AGORA FEITO ANTES DA BUSCA POR NOME) ===
+            // Assim, a barra mostra o total real, não só o da busca.
             
             totalEmpresas++;
 
-            // --- LÓGICA DE PROGRESSO CORRIGIDA ---
             if (isLinhaSemMovimento) {
-                // Se é S/M (Nativo ou Marcado), a empresa conta como 1 tarefa única
                 totalCaixinhas++;
-                
-                // Se for Nativo, já nasce feita. Se for Marcado, depende do check.
-                // Mas como 'isLinhaSemMovimento' é true se estiver marcado, então está feito.
                 if (isMarcadoSM || isSemMovimentoNativo) {
                     caixinhasFeitas++;
                     concluidasEmpresas++;
                 }
             } else {
-                // Se NÃO é S/M, conta os impostos normais
                 if (isOk) concluidasEmpresas++;
-                
                 colunas.forEach(col => {
                     if (col.id !== 'sem_movimento' && obrigacoes.includes(col.id)) {
                         totalCaixinhas++;
@@ -915,11 +1032,20 @@
                     }
                 });
             }
-            // -------------------------------------
 
+            // === 3. FILTRO DE BUSCA (VISUAL) ===
+            // Se não bater com o nome, a gente pula o DESENHO (render), mas já contou lá em cima!
+            const codigoStr = String(emp.codigo);
+            if (termo && !emp.nome.includes(termo) && codigoStr !== termo && !emp.cnpj.includes(termo)) return;
+
+            // === 4. DESENHO DA LINHA ===
             const tr = document.createElement('tr');
             if(isLinhaSemMovimento) tr.classList.add('linha-sem-movimento');
             else if(isOk) tr.classList.add('linha-concluida');
+
+            // Define se a bandeirinha está ativa (vermelha) ou inativa (cinza)
+            const flagClass = emp.prioridade ? 'btn-flag active' : 'btn-flag';
+            const flagTitle = emp.prioridade ? 'Remover Prioridade' : 'Marcar como Prioridade';
 
             let extraInfo = (estado.setor === 'PESSOAL' && emp.nit) ? `<span class="nit-badge">NIT: ${emp.nit}</span>` : '';
             let codDisplay = (emp.regime === 'PF' || emp.codigo > 90000) ? '-' : emp.codigo;
@@ -928,28 +1054,33 @@
             if (emp.preferencia === 'EMAIL' || emp.preferencia === 'AMBOS') iconesPref += `<i class="fa-solid fa-envelope text-primary ms-1" style="font-size: 0.8rem;"></i>`;
             if (emp.preferencia === 'WHATSAPP' || emp.preferencia === 'AMBOS') iconesPref += `<i class="fa-brands fa-whatsapp text-success ms-1" style="font-size: 0.9rem;"></i>`;
 
+           
+
             let html = `
                 <td class="fw-bold" style="cursor: pointer; vertical-align: middle;" title="Clique para mover" onclick="pularParaPosicao(${index})">
                     <div class="d-flex align-items-center justify-content-center gap-1">
                         <span>${codDisplay}</span>
-                        <i class="fa-solid fa-arrows-up-down-left-right text-muted opacity-25" style="font-size: 0.65rem;"></i>
                     </div>
                 </td>
                 
                 <td style="text-align:left; padding-left:10px;">
-                    <div class="fw-bold text-truncate text-dark" 
-                         style="cursor: pointer;" 
-                         onclick="verDetalhes(${index})" 
-                         title="Clique para ver Logins e Informações">
-                        ${emp.nome} ${iconesPref} <i class="fa-solid fa-circle-info opacity-50 ms-1" style="font-size: 0.7rem;"></i>
+                    <div class="d-flex align-items-center">
+                        <i class="fa-solid fa-flag ${flagClass}" onclick="togglePrioridade(${index})" title="${flagTitle}"></i>
+
+                        <div style="flex:1;">
+                            <div class="fw-bold text-truncate text-dark" 
+                                 style="cursor: pointer;" 
+                                 onclick="verDetalhes(${index})" 
+                                 title="Clique para ver Logins e Informações">
+                                ${emp.nome} ${iconesPref}
+                            </div>
+                            <div style="font-size:0.7rem; color:#666;">${emp.cnpj || ''}</div>${extraInfo}
+                        </div>
                     </div>
-                    <div style="font-size:0.7rem; color:#666;">${emp.cnpj || ''}</div>${extraInfo}
                 </td>
                 <td><span class="badge bg-white text-dark border" style="font-size:0.6rem">${emp.regime === 'SIMPLES' ? 'SN' : emp.regime}</span></td>
-            `;
-           
-                
-
+            `;       
+              
             
 
             let nec = 0, marc = 0;
@@ -1062,7 +1193,8 @@
             }
         });
         
-        atualizarProgresso(totalEmpresas, concluidasEmpresas, totalCaixinhas, caixinhasFeitas);
+        // Desativada apos atualização do progresso real.
+        //atualizarProgresso(totalEmpresas, concluidasEmpresas, totalCaixinhas, caixinhasFeitas);
     }
 
     // === FUNÇÃO DE PROGRESSO (CORES E FRASES) ===
@@ -1929,9 +2061,12 @@
 
     // Função auxiliar para salvar e atualizar a tela
     function salvarERenderizarOrdem() {
+        // Atualiza o índice de ordem baseado na posição atual do array
+        empresas.forEach((e, i) => e.ordem = i);
+        
         localStorage.setItem('db_contec_empresas_v13', JSON.stringify(empresas));
         
-        // Efeito visual rápido para mostrar que atualizou
+        // Efeito visual
         const tbody = document.getElementById('tabelaCorpo');
         tbody.style.opacity = '0.5';
         setTimeout(() => {
@@ -2007,10 +2142,12 @@
         elm.value = value;
     }
 
-// --- LEITOR DE EXTRATOS (VERSÃO 5.0 - A QUE FUNCIONOU NO BB) ---
+// === LEITOR DE EXTRATOS V8 (COM SELETOR DE ESTRATÉGIA) ===
     
     let modalLeitorInstance = null;
 
+    // Atualize o botão lá em cima para chamar esta função: abrirLeitorV5()
+    // (Mantive o nome V5 para não precisar mexer no botão HTML se não quiser)
     window.abrirLeitorV5 = function() {
         const modalElement = document.getElementById('modalLeitorExtrato');
         if (!modalElement) return alert("Erro: Modal não encontrado!");
@@ -2018,42 +2155,42 @@
         if(!modalLeitorInstance) modalLeitorInstance = new bootstrap.Modal(modalElement);
         modalLeitorInstance.show();
         
-        // Limpa a tela
+        // Reseta
         document.getElementById('listaItensExtrato').innerHTML = '';
         document.getElementById('totalExtrato').innerText = 'R$ 0,00';
+        document.getElementById('filtroBanco').value = 'AUTO'; // Volta pro automático ao abrir
     }
 
     window.processarExtrato = function() {
         const texto = document.getElementById('textoExtrato').value;
+        const bancoSelecionado = document.getElementById('filtroBanco').value; // PEGA A ESCOLHA DO USUÁRIO
         const listaUl = document.getElementById('listaItensExtrato');
         const displayTotal = document.getElementById('totalExtrato');
         
         listaUl.innerHTML = '';
         let total = 0;
-        
-        // Memória para não somar o mesmo número 2x
-        let linhasDeValorUsadas = new Set();
+        let linhasDeValorUsadas = new Set(); 
 
         const linhasOriginais = texto.split('\n');
         const linhas = linhasOriginais.map((l, index) => ({ texto: l.trim(), index: index }))
                                       .filter(l => l.texto.length > 0);
 
-        // Palavras PROIBIDAS (Total, Saldo, etc)
+        // Palavras para IGNORAR (Segurança)
         const keywordsNegativas = [
             'ENVIADO', 'PAGO', 'PAGAMENTO', 'SAIDA', 'DÉBITO', '\\(-\\)', 'TAR PIX', 
             'TOTAL', 'SALDO', 'S ALDO', 'RENDIMENTO', 'RESGATE', 'APLICAÇÃO', 'IOF', 'IMPOSTO'
         ];
 
-        // Palavras CHAVE (Pix)
+        // Palavras que indicam PIX
         const keywordsPix = [
             'PIX RECEBIDO', 'RECEBIMENTO VIA PIX', 'CR PIX', 'CRED PIX', 
             'TRANSFERÊNCIA RECEBIDA', 'TRANSFERENCIA RECEBIDA', 
             'PIX - RECEBIDO', ' C$' 
         ];
 
+        // Função que caça dinheiro
         const extrairValor = (linhaObj) => {
             if (!linhaObj) return null;
-            // Regex para dinheiro
             const regexValor = /(?:R\$\s?)?(\d{1,3}(?:\.?\d{3})*,\d{2})/g;
             const matches = linhaObj.texto.match(regexValor);
             
@@ -2080,9 +2217,26 @@
                 let valorEncontrado = null;
                 let linhaOrigemTexto = linhaAtual.texto;
 
-                // --- ESTRATÉGIA V5 (A QUE FUNCIONOU) ---
-                // Olha MUITO pra cima (BB) e um pouco pra baixo
-                const prioridadeBusca = [0, 1, -1, -2, -3, -4, 2]; 
+                // === A MÁGICA DO SELETOR AQUI ===
+                let prioridadeBusca = [];
+
+                if (bancoSelecionado === 'BB') {
+                    // BB: O dinheiro tá em CIMA. Olha 5 linhas pra cima.
+                    prioridadeBusca = [-1, -2, -3, -4, -5, 0]; 
+                } 
+                else if (bancoSelecionado === 'NUBANK') {
+                    // Nubank: O dinheiro tá EMBAIXO. Olha 5 linhas pra baixo.
+                    prioridadeBusca = [1, 2, 3, 4, 5, 0];
+                } 
+                else if (bancoSelecionado === 'CAIXA') {
+                    // Caixa/Santander: Geralmente na mesma linha ou logo ao lado.
+                    prioridadeBusca = [0, 1, -1];
+                } 
+                else {
+                    // AUTO: Tenta tudo (com risco de falso positivo, mas tenta acertar)
+                    prioridadeBusca = [0, 1, -1, -2, -3, 2, 3];
+                }
+                // ================================
 
                 for (let offset of prioridadeBusca) {
                     const alvoIndex = i + offset;
@@ -2091,16 +2245,16 @@
                         const linhaCandidata = linhas[alvoIndex];
                         const candidataUpper = linhaCandidata.texto.toUpperCase();
                         
-                        // Não pega valor de linha proibida vizinha
+                        // Segurança extra nas vizinhas
                         if (keywordsNegativas.some(key => new RegExp(key).test(candidataUpper))) continue;
 
                         const resultado = extrairValor(linhaCandidata);
 
-                        // Se achou valor E não foi usado
                         if (resultado && !linhasDeValorUsadas.has(resultado.linhaIndex)) {
                             valorEncontrado = resultado;
                             linhasDeValorUsadas.add(resultado.linhaIndex); 
                             
+                            // Ajusta texto visual pra saber de onde veio
                             if (offset !== 0) {
                                 linhaOrigemTexto = (offset < 0) ? 
                                     `${linhaCandidata.texto} ... ${linhaAtual.texto}` : 
@@ -2132,6 +2286,9 @@
 
         displayTotal.innerText = total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     }
+
+    
+
 
   </script>
 </body>
